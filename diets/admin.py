@@ -19,6 +19,13 @@ class DailyMenuInline(admin.TabularInline):
 class DietPlanAdmin(admin.ModelAdmin):
     list_display = ['name', 'patient', 'dietitian', 'start_date', 'end_date']
     inlines = [DailyMenuInline]
+    exclude = ['dietitian']
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.dietitian = request.user
+        super().save_model(request, obj, form, change)
+
 
 class ScheduledMealInline(admin.TabularInline):
     model = ScheduledMeal
