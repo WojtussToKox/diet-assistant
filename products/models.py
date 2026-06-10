@@ -26,3 +26,6 @@ class Product(models.Model):
         decimal_places=2,
         validators=[MinValueValidator(Decimal('0.00'))]
     )
+
+    def __str__(self):
+        return self.name
