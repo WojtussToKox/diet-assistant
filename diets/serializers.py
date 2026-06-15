@@ -3,6 +3,7 @@ from .models import Recipe, RecipeIngredient, DietPlan, DailyMenu, ScheduledMeal
 
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
     product_name = serializers.CharField(source='product.name', read_only=True)
 
     class Meta:
@@ -25,7 +26,7 @@ class RecipeDetailSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'description', 'author', 'ingredients']
 
     def create(self, validated_data):
-        ingredients_data = validated_data.pop('recipeingredient_set')
+        ingredients_data = validated_data.pop('recipeingredient_set', [])
         recipe = Recipe.objects.create(**validated_data)
         for ingredient in ingredients_data:
             RecipeIngredient.objects.create(recipe=recipe, **ingredient)
@@ -33,14 +34,33 @@ class RecipeDetailSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         ingredients_data = validated_data.pop('recipeingredient_set', None)
+
         instance.name = validated_data.get('name', instance.name)
         instance.description = validated_data.get('description', instance.description)
         instance.save()
 
         if ingredients_data is not None:
-            instance.recipeingredient_set.all().delete()
-            for ingredient in ingredients_data:
-                RecipeIngredient.objects.create(recipe=instance, **ingredient)
+            existing_ingredients = {
+                ingredient.product: ingredient
+                for ingredient in instance.recipeingredient_set.all()
+            }
+
+            for ingredient_data in ingredients_data:
+                product = ingredient_data.get('product')
+
+                if product and product in existing_ingredients:
+                    ingredient_instance = existing_ingredients.pop(product)
+
+                    for attr, value in ingredient_data.items():
+                        if attr not in ['id', 'recipe', 'product']:
+                            setattr(ingredient_instance, attr, value)
+                    ingredient_instance.save()
+                else:
+                    ingredient_data.pop('id', None)
+                    RecipeIngredient.objects.create(recipe=instance, **ingredient_data)
+
+            for ingredient_to_delete in existing_ingredients.values():
+                ingredient_to_delete.delete()
 
         return instance
 
