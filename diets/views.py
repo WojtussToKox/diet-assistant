@@ -12,7 +12,7 @@ from .serializers import (
 )
 
 
-class MixedSerializerMixin(viewsets.ModelViewSet):
+class MixedSerializerMixin():
     list_serializer_class = None
     detail_serializer_class = None
 
