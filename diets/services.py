@@ -1,5 +1,6 @@
 import logging
 from decimal import Decimal
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -70,3 +71,82 @@ class DietCalculatorService:
                 total_macros[key] += recipe_macros[key]
 
         return total_macros
+
+class DietAnalyticsService:
+
+    def __init__(self, diet_plan, calculator=None):
+        self.diet_plan = diet_plan
+        self.calculator = calculator or DietCalculatorService
+
+    def _build_dataframe(self) -> pd.DataFrame:
+        daily_menus = self.diet_plan.daily_menus.prefetch_related(
+            'meals__recipe__recipeingredient_set__product'
+        ).all()
+
+        if not daily_menus.exists():
+            raise ValueError(
+                f"DietPlan '{self.diet_plan.name}' nie zawiera żadnych dni menu."
+            )
+        rows = []
+        for menu in daily_menus:
+            macros = self.calculator.calculate_daily_menu(menu)
+            rows.append({
+               'day_number': menu.day_number,
+                'calories': float(macros['calories']),
+                'protein': float(macros['protein']),
+                'fat': float(macros['fat']),
+                'carbs': float(macros['carbs']),
+             })
+        return (
+            pd.DataFrame(rows)
+            .sort_values('day_number')
+            .reset_index(drop=True)
+        )
+
+    def get_daily_averages(self) -> dict:
+        df = self._build_dataframe()
+        averages = df[['calories', 'protein', 'fat', 'carbs']].mean().round(2)
+
+        return {
+            'avg_calories':  averages['calories'],
+            'avg_protein':   averages['protein'],
+            'avg_fat':       averages['fat'],
+            'avg_carbs':     averages['carbs'],
+            'days_analyzed': len(df),
+        }
+
+    def detect_calories_deviations(self, threshold_pct: float = 20.0) -> list[dict]:
+        if not self.diet_plan.daily_calories_goal:
+            raise ValueError(
+                f"DietPlan '{self.diet_plan.name}' nie ma ustawionego celu kalorycznego."
+            )
+        goal = float(self.diet_plan.daily_calories_goal)
+        df = self._build_dataframe()
+
+        df['goal'] = goal
+        df['deviation_pct'] = ((df['calories'] - goal) / goal * 100).round(2)
+        df['deviation_abs'] = (df['calories'] - goal).round(2)
+        df['status'] = df['deviation_pct'].apply(
+            lambda x: 'OVER' if x > 0 else 'UNDER'
+       )
+
+        deviating = df[df['deviation_pct'].abs() > threshold_pct]
+
+        if deviating.empty:
+            logger.info(
+                "DietPlan '%s': brak odchyleń powyżej %.1f%%.",
+                self.diet_plan.name,
+                threshold_pct,
+            )
+            return []
+
+        logger.warning(
+            "DietPlan '%s': wykryto %d dni z odchyleniem > %.1f%%.",
+            self.diet_plan.name,
+            len(deviating),
+            threshold_pct,
+        )
+
+        return deviating[
+            ['day_number', 'calories', 'goal', 'deviation_pct', 'deviation_abs', 'status']
+        ].to_dict(orient='records')
