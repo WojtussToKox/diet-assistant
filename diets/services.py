@@ -1,6 +1,10 @@
 import logging
 from decimal import Decimal
 import pandas as pd
+import json
+import csv
+from pathlib import Path
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -150,3 +154,62 @@ class DietAnalyticsService:
         return deviating[
             ['day_number', 'calories', 'goal', 'deviation_pct', 'deviation_abs', 'status']
         ].to_dict(orient='records')
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return str(obj)
+        return super().default(obj)
+
+class DietPlanExportService:
+    def __init__(self, diet_plan, calculator=None):
+        self.diet_plan = diet_plan
+        self.calculator = calculator or DietCalculatorService
+
+    def _aggregate_shopping_list(self) -> list[dict]:
+        aggregated = defaultdict(lambda: {
+            'product_id': None,
+            'total_grams': 0,
+            'total_calories': Decimal('0.00'),
+        })
+
+        daily_menus = self.diet_plan.daily_menus.prefetch_related(
+            'meals__recipe__recipeingredient_set__product'
+        ).all()
+
+        if not daily_menus.exists():
+            raise ValueError(
+                f"DietPlan '{self.diet_plan.name}' nie zawiera żadnych dni menu."
+            )
+
+        for menu in daily_menus:
+            for meal in menu.meals.select_related('recipe').all():
+                if not meal.recipe:
+                    continue
+
+                ingredients = meal.recipe.recipeingredient_set.select_related('product').all()
+                for ingredient in ingredients:
+                    product = ingredient.product
+                    entry = aggregated[product.name]
+
+                    entry['product_id'] = product.id
+                    entry['total_grams'] += ingredient.weight_in_grams
+
+                    macros = self.calculator.calculate_ingredient(
+                        ingredient.weight_in_grams, product
+                    )
+                    entry['total_calories'] += macros['calories']
+        if not aggregated:
+            raise ValueError(
+                f"DietPlan '{self.diet_plan.name}' nie zawiera żadnych składników do agregacji."
+            )
+
+        return [
+            {
+                'product_name': name,
+                'product_id': data['product_id'],
+                'total_grams': data['total_grams'],
+                'total_calories': data['total_calories'],
+            }
+            for name, data in sorted(aggregated.items())
+        ]
