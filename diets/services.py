@@ -213,3 +213,51 @@ class DietPlanExportService:
             }
             for name, data in sorted(aggregated.items())
         ]
+
+    def export_shopping_list_json(self, output_path: str) -> Path:
+        shopping_list = self._aggregate_shopping_list()
+
+        output = {
+            'diet_plan': self.diet_plan.name,
+            'patient': str(self.diet_plan.patient),
+            'period': f"{self.diet_plan.start_date} - {self.diet_plan.end_date}",
+            'shopping_list': shopping_list,
+        }
+
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            with path.open('w', encoding='utf-8') as f:
+                json.dump(output, f, cls=DecimalEncoder, ensure_ascii=False, indent=2)
+        except OSError as e:
+            raise OSError(f"Cannot save JSON file {output_path}: {e}") from e
+
+        logger.info("Exported shopping list (JSON): %s", path)
+        return path
+
+
+    def export_shopping_list_csv(self, output_path: str) -> Path:
+        shopping_list = self._aggregate_shopping_list()
+
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            with path.open('w', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(
+                    f,
+                    fieldnames=['product_name', 'product_id', 'total_grams', 'total_calories']
+                )
+                writer.writeheader()
+
+                for row in shopping_list:
+                    writer.writerow({
+                        **row,
+                        'total_calories': str(row['total_calories']),
+                    })
+        except OSError as e:
+            raise OSError(f"Cannot save CSV file {output_path}: {e}") from e
+
+        logger.info("Exported shopping list (CSV): %s", path)
+        return path
