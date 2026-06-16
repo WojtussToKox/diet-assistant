@@ -7,3 +7,12 @@ media/
 
 .vscode/
 .idea/
+
+# Frontend (React / Node)
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+npm-debug.log*
+
+# macOS
+.DS_Store
