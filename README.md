@@ -53,3 +53,22 @@ uv run manage.py migrate
 ```bash
 uv add nazwa_biblioteki
 ```
+
+### Dokumentacja tekstowa API
+
+```bash
+http://[IP aplikacji]:[Port aplikacji]/api/schema
+```
+Dla localhost
+```bash
+http://127.0.0.1:8000/api/schema/
+```
+
+### Dokumentacja graficza API
+```bash
+http://[IP aplikacji]:[Port aplikacji]/api/schema/swagger-ui/
+```
+Dla localhost
+```bash
+http://127.0.0.1:8000/api/schema/swagger-ui/
+```
