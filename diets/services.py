@@ -261,3 +261,60 @@ class DietPlanExportService:
 
         logger.info("Exported shopping list (CSV): %s", path)
         return path
+
+class ProductImportService:
+    REQUIRED_FIELDS = {
+        'name', 'calories_per_100g', 'protein_per_100g',
+        'fat_per_100g', 'carbs_per_100g',
+    }
+
+    @classmethod
+    def load_from_csv(cls, csv_path: str) -> dict:
+        from products.models import Product
+
+        results = {'created': 0, 'skipped': 0, 'errors': []}
+
+        path = Path(csv_path)
+        if not path.exists():
+            raise FileNotFoundError(f"CSV file does not exist: {csv_path}")
+
+        with path.open('r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+
+            if not cls.REQUIRED_FIELDS.issubset(set(reader.fieldnames or [])):
+                missing = cls.REQUIRED_FIELDS - set(reader.fieldnames or [])
+                raise ValueError(f"CSV is missing required columns: {missing}")
+
+            for row_num, row in enumerate(reader, start=2):
+                try:
+                    name = row['name'].strip()
+                    if not name:
+                        raise ValueError("Empty product name.")
+
+                    product, created = Product.objects.get_or_create(
+                        name=name,
+                        defaults={
+                            'calories_per_100g': Decimal(row['calories_per_100g']),
+                            'protein_per_100g':  Decimal(row['protein_per_100g']),
+                            'fat_per_100g':      Decimal(row['fat_per_100g']),
+                            'carbs_per_100g':    Decimal(row['carbs_per_100g']),
+                        }
+                    )
+
+                    if created:
+                        results['created'] += 1
+                    else:
+                        results['skipped'] += 1
+                        logger.info("Product '%s' already exists — skipped.", name)
+
+                except (KeyError, ValueError, Exception) as e:  # noqa: BLE001
+                    msg = f"Row {row_num}: {e}"
+                    results['errors'].append(msg)
+                    results['skipped'] += 1
+                    logger.warning("Skipped CSV row — %s", msg)
+
+        logger.info(
+            "CSV import finished: %d created, %d skipped, %d errors.",
+            results['created'], results['skipped'] - len(results['errors']), len(results['errors'])
+        )
+        return results
