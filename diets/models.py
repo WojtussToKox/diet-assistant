@@ -61,6 +61,14 @@ class DietPlan(models.Model):
     def __str__(self):
         return f"{self.name} ({self.patient.username})"
 
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(start_date__lt=models.F('end_date')),
+                name='check_start_date_before_end_date'
+            )
+        ]
+
 
 class DailyMenu(models.Model):
     diet_plan = models.ForeignKey(
