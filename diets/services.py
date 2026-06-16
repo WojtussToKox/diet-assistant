@@ -12,10 +12,10 @@ class DietCalculatorService:
     @staticmethod
     def calculate_ingredient(weight_in_grams: int, product) -> dict:
         if weight_in_grams is None or weight_in_grams <= 0:
-            raise ValueError("Gramatura musi być większa od zera.")
+            raise ValueError("Weight in grams must be greater than zero.")
 
         if not product:
-            raise ValueError("Brak przypisanego produktu.")
+            raise ValueError("No product assigned.")
 
         multiplier = Decimal(str(weight_in_grams)) / Decimal('100.0')
 
@@ -63,7 +63,7 @@ class DietCalculatorService:
         for meal in scheduled_meals:
             if not meal.recipe:
                 logger.warning(
-                    "Posiłek ID: %s w DailyMenu ID: %s nie ma przypisanego przepisu! Pominięto.",
+                    "ScheduledMeal ID: %s in DailyMenu ID: %s has no assigned recipe! Skipped.",
                     meal.id,
                     daily_menu.id,
                 )
@@ -89,7 +89,7 @@ class DietAnalyticsService:
 
         if not daily_menus.exists():
             raise ValueError(
-                f"DietPlan '{self.diet_plan.name}' nie zawiera żadnych dni menu."
+                f"DietPlan '{self.diet_plan.name}' contains no daily menus."
             )
         rows = []
         for menu in daily_menus:
@@ -122,7 +122,7 @@ class DietAnalyticsService:
     def detect_calories_deviations(self, threshold_pct: float = 20.0) -> list[dict]:
         if not self.diet_plan.daily_calories_goal:
             raise ValueError(
-                f"DietPlan '{self.diet_plan.name}' nie ma ustawionego celu kalorycznego."
+                f"DietPlan '{self.diet_plan.name}' has no daily calories goal set."
             )
         goal = float(self.diet_plan.daily_calories_goal)
         df = self._build_dataframe()
@@ -138,14 +138,14 @@ class DietAnalyticsService:
 
         if deviating.empty:
             logger.info(
-                "DietPlan '%s': brak odchyleń powyżej %.1f%%.",
+                "DietPlan '%s': no deviations above %.1f%%.",
                 self.diet_plan.name,
                 threshold_pct,
             )
             return []
 
         logger.warning(
-            "DietPlan '%s': wykryto %d dni z odchyleniem > %.1f%%.",
+            "DietPlan '%s': detected %d days with deviation > %.1f%%.",
             self.diet_plan.name,
             len(deviating),
             threshold_pct,
@@ -179,7 +179,7 @@ class DietPlanExportService:
 
         if not daily_menus.exists():
             raise ValueError(
-                f"DietPlan '{self.diet_plan.name}' nie zawiera żadnych dni menu."
+                f"DietPlan '{self.diet_plan.name}' contains no daily menus."
             )
 
         for menu in daily_menus:
@@ -201,7 +201,7 @@ class DietPlanExportService:
                     entry['total_calories'] += macros['calories']
         if not aggregated:
             raise ValueError(
-                f"DietPlan '{self.diet_plan.name}' nie zawiera żadnych składników do agregacji."
+                f"DietPlan '{self.diet_plan.name}' contains no ingredients to aggregate."
             )
 
         return [
