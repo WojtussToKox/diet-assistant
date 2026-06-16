@@ -5,6 +5,13 @@ import json
 import csv
 from pathlib import Path
 from collections import defaultdict
+from .exceptions import (
+    DataAggregationError,
+    FileExportError,
+    CSVFileNotFoundError,
+    InvalidCSVStructureError,
+    MissingRecipeError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +69,10 @@ class DietCalculatorService:
 
         for meal in scheduled_meals:
             if not meal.recipe:
-                logger.warning(
-                    "ScheduledMeal ID: %s in DailyMenu ID: %s has no assigned recipe! Skipped.",
-                    meal.id,
-                    daily_menu.id,
+                raise MissingRecipeError(
+                    f"Cannot calculate DailyMenu ID: {daily_menu.id}. "
+                    f"ScheduledMeal ID: {meal.id} has no assigned recipe."
                 )
-                continue
 
             recipe_macros = DietCalculatorService.calculate_recipe(meal.recipe)
 
@@ -178,14 +183,17 @@ class DietPlanExportService:
         ).all()
 
         if not daily_menus.exists():
-            raise ValueError(
+            raise DataAggregationError(
                 f"DietPlan '{self.diet_plan.name}' contains no daily menus."
             )
 
         for menu in daily_menus:
             for meal in menu.meals.select_related('recipe').all():
                 if not meal.recipe:
-                    continue
+                    raise MissingRecipeError(
+                        f"Cannot aggregate shopping list. "
+                        f"ScheduledMeal ID: {meal.id} has no assigned recipe."
+                    )
 
                 ingredients = meal.recipe.recipeingredient_set.select_related('product').all()
                 for ingredient in ingredients:
@@ -200,7 +208,7 @@ class DietPlanExportService:
                     )
                     entry['total_calories'] += macros['calories']
         if not aggregated:
-            raise ValueError(
+            raise DataAggregationError(
                 f"DietPlan '{self.diet_plan.name}' contains no ingredients to aggregate."
             )
 
@@ -231,7 +239,7 @@ class DietPlanExportService:
             with path.open('w', encoding='utf-8') as f:
                 json.dump(output, f, cls=DecimalEncoder, ensure_ascii=False, indent=2)
         except OSError as e:
-            raise OSError(f"Cannot save JSON file {output_path}: {e}") from e
+            raise FileExportError(f"Cannot save JSON file {output_path}: {e}") from e
 
         logger.info("Exported shopping list (JSON): %s", path)
         return path
@@ -257,7 +265,7 @@ class DietPlanExportService:
                         'total_calories': str(row['total_calories']),
                     })
         except OSError as e:
-            raise OSError(f"Cannot save CSV file {output_path}: {e}") from e
+            raise FileExportError(f"Cannot save CSV file {output_path}: {e}") from e
 
         logger.info("Exported shopping list (CSV): %s", path)
         return path
@@ -276,14 +284,14 @@ class ProductImportService:
 
         path = Path(csv_path)
         if not path.exists():
-            raise FileNotFoundError(f"CSV file does not exist: {csv_path}")
+            raise CSVFileNotFoundError(f"CSV file does not exist: {csv_path}")
 
         with path.open('r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
 
             if not cls.REQUIRED_FIELDS.issubset(set(reader.fieldnames or [])):
                 missing = cls.REQUIRED_FIELDS - set(reader.fieldnames or [])
-                raise ValueError(f"CSV is missing required columns: {missing}")
+                raise InvalidCSVStructureError(f"CSV is missing required columns: {missing}")
 
             for row_num, row in enumerate(reader, start=2):
                 try:
