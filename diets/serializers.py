@@ -92,6 +92,24 @@ class DietPlanListSerializer(serializers.ModelSerializer):
         model = DietPlan
         fields = ['id', 'name', 'patient', 'dietitian', 'start_date', 'end_date', 'daily_calories_goal']
 
+    def validate_patient(self, value):
+        user = self.context['request'].user
+        
+        if user.role == 'DIETITIAN':
+            if value.role != 'PATIENT':
+                raise serializers.ValidationError("Chosen user has to have role - Patient")
+            if value.dietitian != user:
+                raise serializers.ValidationError("Cannot set a diet for patient that is not assigned to you.")
+                
+        elif user.role == 'STANDARD':
+            if value != user:
+                raise serializers.ValidationError("Standard user can create a diet exclusively for yourself.")
+                
+        elif user.role == 'PATIENT':
+             raise serializers.ValidationError("Patients cannot create their own diets.")
+             
+        return value
+
 
 class DietPlanDetailSerializer(serializers.ModelSerializer):
     dietitian = serializers.HiddenField(default=serializers.CurrentUserDefault())
