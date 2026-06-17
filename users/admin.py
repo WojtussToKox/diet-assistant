@@ -5,10 +5,10 @@ from .models import User
 
 class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
-        ('Informacje o diecie i roli', {
+        ('Diet and role information', {
             'fields': ('role', 'dietitian')
         }),
-        ('Cechy fizyczne', {
+        ('Physical features', {
             'fields': ('date_of_birth', 'gender', 'height_cm', 'weight_kg')
         }),
     )
