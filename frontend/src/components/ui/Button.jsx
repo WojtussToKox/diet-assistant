@@ -1,26 +1,39 @@
-export const Button = ({ children, onClick, variant = "primary", size = "md", disabled, className = "" }) => {
-  const baseClasses = "inline-flex items-center gap-1.5 font-semibold rounded-lg transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed";
-  
-  const sizeClasses = {
-    sm: "px-3.5 py-1.5 text-xs",
-    md: "px-5 py-2 text-sm",
-    lg: "px-7 py-3 text-base",
+export function Button({ children, onClick, variant = "primary", size = "md", disabled = false, className = "" }) {
+  const base = "inline-flex items-center justify-center font-semibold border-0 cursor-pointer transition-all rounded-xl disabled:opacity-40 disabled:cursor-not-allowed";
+
+  const sizes = {
+    sm: "text-xs px-3 py-1.5",
+    md: "text-sm px-4 py-2.5",
   };
 
-  const variantClasses = {
-    primary: "bg-accent text-white hover:bg-[#245A42]",
-    secondary: "bg-transparent text-accent border-[1.5px] border-accent hover:bg-accent-xlight",
-    ghost: "bg-transparent text-text-muted hover:bg-background hover:text-text",
-    danger: "bg-danger text-white hover:bg-[#B91C1C]",
+  const variants = {
+    primary: {
+      background: 'var(--color-accent)',
+      color: '#fff',
+    },
+    secondary: {
+      background: 'var(--color-background)',
+      color: 'var(--color-text)',
+      border: '1px solid var(--color-border)',
+    },
+    ghost: {
+      background: 'transparent',
+      color: 'var(--color-text-muted)',
+    },
   };
+
+  const style = variants[variant] || variants.primary;
 
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`${baseClasses} ${sizeClasses[size]} ${variantClasses[variant]} ${className}`}
+      className={`${base} ${sizes[size]} ${className}`}
+      style={style}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.opacity = '0.85'; }}
+      onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
     >
       {children}
     </button>
   );
-};
+}

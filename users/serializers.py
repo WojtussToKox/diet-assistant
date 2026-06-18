@@ -1,6 +1,14 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import User
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class UserMeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'height_cm', 'weight_kg']
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     
@@ -9,10 +17,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'password_confirm', 'role', 'first_name', 'last_name']
+        fields = ['username', 'email', 'password', 'password_confirm', 'role', 'first_name', 'last_name', 'height_cm', 'weight_kg']
 
     def validate(self, data):
-        
         if data['password'] != data['password_confirm']:
             raise serializers.ValidationError({"password": "Passwords are not the same"})
         return data
@@ -26,7 +33,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             password=validated_data['password'],
             role=validated_data.get('role', 'STANDARD'),
             first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', '')
+            last_name=validated_data.get('last_name', ''),
+            height_cm=validated_data.get('height_cm'),
+            weight_kg=validated_data.get('weight_kg')
         )
         return user
 

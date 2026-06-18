@@ -17,16 +17,11 @@ export default function DietPlansPanel({ toast }) {
   const [form, setForm] = useState({ name: "", patient: "", start_date: "", end_date: "", daily_calories_goal: "" });
   const [saving, setSaving] = useState(false);
 
-  const openAdd = () => {
-    setForm({ name: "", patient: "", start_date: "", end_date: "", daily_calories_goal: "" });
-    setModal("add");
-  };
+  const openAdd = () => { setForm({ name: "", patient: "", start_date: "", end_date: "", daily_calories_goal: "" }); setModal("add"); };
 
   const openDetail = async (plan) => {
-    try {
-      const d = await apiFetch(`/diet-plans/${plan.id}/`);
-      setDetail(d);
-    } catch { toast("Błąd ładowania", "error"); }
+    try { const d = await apiFetch(`/diet-plans/${plan.id}/`); setDetail(d); }
+    catch { toast("Błąd ładowania", "error"); }
   };
 
   const save = async () => {
@@ -47,56 +42,56 @@ export default function DietPlansPanel({ toast }) {
 
   const remove = async (id) => {
     if (!window.confirm("Usunąć plan diety?")) return;
-    try {
-      await apiFetch(`/diet-plans/${id}/`, { method: "DELETE" });
-      toast("Plan usunięty", "success"); reload();
-    } catch { toast("Błąd usuwania", "error"); }
+    try { await apiFetch(`/diet-plans/${id}/`, { method: "DELETE" }); toast("Plan usunięty", "success"); reload(); }
+    catch { toast("Błąd usuwania", "error"); }
   };
 
   const daysBetween = (start, end) => {
     if (!start || !end) return 0;
     return Math.ceil((new Date(end) - new Date(start)) / 86400000) + 1;
   };
-
   const isActive = (plan) => {
     const today = new Date().toISOString().slice(0, 10);
     return plan.start_date <= today && today <= plan.end_date;
   };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div className="pb-16 animate-fadeUp">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="m-0 text-2xl font-bold text-text">Plany Diety</h2>
-          <p className="m-0 mt-1 text-text-muted text-sm">{plans.length} planów</p>
+          <h2 className="m-0 text-2xl font-bold" style={{ color: 'var(--color-text)' }}>Plany diety</h2>
+          <p className="m-0 mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>{plans.length} planów</p>
         </div>
         <Btn onClick={openAdd}>＋ Nowy plan</Btn>
       </div>
 
       {loading ? <Spinner /> : plans.length === 0 ? (
-        <EmptyState icon="📋" title="Brak planów diety" sub="Utwórz plan, przypisz go do pacjenta i dodaj dzienne menu." action={<Btn onClick={openAdd}>Utwórz plan</Btn>} />
+        <EmptyState icon="📋" title="Brak planów diety" sub="Utwórz plan i przypisz go do pacjenta." action={<Btn onClick={openAdd}>Utwórz plan</Btn>} />
       ) : (
         <div className="grid gap-3">
           {plans.map(plan => (
             <Card key={plan.id} hover onClick={() => openDetail(plan)}>
               <div className="flex justify-between items-start">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2.5 mb-1.5">
-                    <span className="font-bold text-base text-text">{plan.name}</span>
-                    {isActive(plan) ? <Badge variant="accent">Aktywny</Badge> : <Badge variant="muted">Nieaktywny</Badge>}
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <span className="font-semibold text-base" style={{ color: 'var(--color-text)' }}>{plan.name}</span>
+                    {isActive(plan)
+                      ? <Badge variant="accent">Aktywny</Badge>
+                      : <Badge variant="muted">Nieaktywny</Badge>
+                    }
                   </div>
-                  <div className="flex gap-4 text-[13px] text-text-muted">
+                  <div className="flex flex-wrap gap-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>
                     <span>👤 Pacjent #{plan.patient}</span>
                     <span>📅 {plan.start_date} → {plan.end_date}</span>
                     <span>⏱️ {daysBetween(plan.start_date, plan.end_date)} dni</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 ml-4">
                   <div className="text-right">
-                    <div className="font-mono font-bold text-xl text-accent leading-none">{plan.daily_calories_goal}</div>
-                    <div className="text-[11px] text-text-muted mt-1">kcal/dzień</div>
+                    <div className="font-mono font-black text-xl leading-none" style={{ color: 'var(--color-accent)' }}>{plan.daily_calories_goal}</div>
+                    <div className="text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>kcal/dzień</div>
                   </div>
-                  <div className="flex gap-1 ml-2" onClick={e => e.stopPropagation()}>
+                  <div className="flex gap-1" onClick={e => e.stopPropagation()}>
                     <Btn variant="ghost" size="sm" onClick={() => { setForm({ name: plan.name, patient: String(plan.patient), start_date: plan.start_date, end_date: plan.end_date, daily_calories_goal: String(plan.daily_calories_goal) }); setModal(plan); }}>✏️</Btn>
                     <Btn variant="ghost" size="sm" onClick={() => remove(plan.id)}>🗑️</Btn>
                   </div>
@@ -111,7 +106,7 @@ export default function DietPlansPanel({ toast }) {
 
       {modal && (
         <Modal title={modal === "add" ? "Nowy plan diety" : "Edytuj plan"} onClose={() => setModal(null)}>
-          <div className="grid gap-3.5">
+          <div className="grid gap-4">
             <Input label="Nazwa planu" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required placeholder="np. Plan odchudzający" />
             <Input label="ID Pacjenta" type="number" value={form.patient} onChange={v => setForm(f => ({ ...f, patient: v }))} required placeholder="np. 2" />
             <div className="grid grid-cols-2 gap-3">
@@ -130,7 +125,6 @@ export default function DietPlansPanel({ toast }) {
   );
 }
 
-// Komponenty wewnętrzne używane wyłącznie w widoku diet
 function DietPlanDetail({ plan, onClose, toast }) {
   const { data: menus, loading, reload } = useList(`/daily-menus/?diet_plan=${plan.id}`, [plan.id]);
   const { data: recipes } = useList("/recipes/");
@@ -141,29 +135,22 @@ function DietPlanDetail({ plan, onClose, toast }) {
   const [saving, setSaving] = useState(false);
 
   const MEAL_TYPES = [
-    { value: "BREAKFAST", label: "Śniadanie" },
-    { value: "LUNCH", label: "II Śniadanie" },
-    { value: "DINNER", label: "Obiad" },
-    { value: "SNACK", label: "Podwieczorek" },
-    { value: "SUPPER", label: "Kolacja" },
+    { value: "BREAKFAST", label: "Śniadanie" }, { value: "LUNCH", label: "II Śniadanie" },
+    { value: "DINNER", label: "Obiad" }, { value: "SNACK", label: "Podwieczorek" }, { value: "SUPPER", label: "Kolacja" },
   ];
 
   const addMenu = async () => {
-    if (!dayNum) return;
-    setSaving(true);
+    if (!dayNum) return; setSaving(true);
     try {
       await apiFetch("/daily-menus/", { method: "POST", body: JSON.stringify({ diet_plan: plan.id, day_number: Number(dayNum) }) });
       toast("Dzień dodany", "success"); setAddMenuModal(false); setDayNum(""); reload();
-    } catch (e) { toast("Błąd: " + e.message, "error"); }
-    finally { setSaving(false); }
+    } catch (e) { toast("Błąd: " + e.message, "error"); } finally { setSaving(false); }
   };
 
   const removeMenu = async (id) => {
-    if (!window.confirm("Usunąć ten dzień?")) return;
-    try {
-      await apiFetch(`/daily-menus/${id}/`, { method: "DELETE" });
-      toast("Dzień usunięty", "success"); reload();
-    } catch { toast("Błąd", "error"); }
+    if (!window.confirm("Usunąć dzień?")) return;
+    try { await apiFetch(`/daily-menus/${id}/`, { method: "DELETE" }); toast("Dzień usunięty", "success"); reload(); }
+    catch { toast("Błąd", "error"); }
   };
 
   const addMeal = async () => {
@@ -171,43 +158,40 @@ function DietPlanDetail({ plan, onClose, toast }) {
     try {
       await apiFetch("/scheduled-meals/", { method: "POST", body: JSON.stringify({ daily_menu: mealModal.id, meal_type: mealForm.meal_type, recipe: Number(mealForm.recipe) }) });
       toast("Posiłek dodany", "success"); setMealModal(null); setMealForm({ meal_type: "", recipe: "" }); reload();
-    } catch (e) { toast("Błąd: " + e.message, "error"); }
-    finally { setSaving(false); }
+    } catch (e) { toast("Błąd: " + e.message, "error"); } finally { setSaving(false); }
   };
 
   const removeMeal = async (id) => {
-    try {
-      await apiFetch(`/scheduled-meals/${id}/`, { method: "DELETE" });
-      toast("Posiłek usunięty", "success"); reload();
-    } catch { toast("Błąd", "error"); }
+    try { await apiFetch(`/scheduled-meals/${id}/`, { method: "DELETE" }); toast("Posiłek usunięty", "success"); reload(); }
+    catch { toast("Błąd", "error"); }
   };
 
   const sorted = [...menus].sort((a, b) => a.day_number - b.day_number);
 
   return (
     <Modal title={`📋 ${plan.name}`} onClose={onClose} width="max-w-[680px]">
-      <div className="flex gap-4 mb-5 flex-wrap">
-        <div className="py-2.5 px-4 bg-background rounded-lg flex-1 min-w-[120px]">
-          <div className="text-[11px] text-text-muted mb-0.5">PACJENT</div>
-          <div className="font-bold text-text">#{plan.patient}</div>
-        </div>
-        <div className="py-2.5 px-4 bg-background rounded-lg flex-1 min-w-[120px]">
-          <div className="text-[11px] text-text-muted mb-0.5">OKRES</div>
-          <div className="font-bold text-text text-[13px]">{plan.start_date} — {plan.end_date}</div>
-        </div>
-        <div className="py-2.5 px-4 bg-accent-xlight rounded-lg flex-1 min-w-[120px]">
-          <div className="text-[11px] text-accent mb-0.5">CEL KALORII</div>
-          <div className="font-bold text-accent text-lg font-mono leading-none">{plan.daily_calories_goal} kcal</div>
-        </div>
+      {/* Plan summary */}
+      <div className="flex gap-3 mb-6 flex-wrap">
+        {[
+          { label: "PACJENT", value: `#${plan.patient}` },
+          { label: "OKRES", value: `${plan.start_date} — ${plan.end_date}`, small: true },
+          { label: "CEL KALORII", value: `${plan.daily_calories_goal} kcal`, accent: true },
+        ].map(({ label, value, small, accent }) => (
+          <div key={label} className="py-3 px-4 rounded-xl flex-1 min-w-[120px]"
+            style={{ background: accent ? 'var(--color-accent-xlight)' : 'var(--color-background)' }}>
+            <div className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: accent ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>{label}</div>
+            <div className={`font-bold ${small ? 'text-sm' : 'text-base'}`} style={{ color: accent ? 'var(--color-accent)' : 'var(--color-text)' }}>{value}</div>
+          </div>
+        ))}
       </div>
 
       <div className="flex justify-between items-center mb-3">
-        <h4 className="m-0 text-[15px] font-bold text-text">Dni planu ({sorted.length})</h4>
+        <h4 className="m-0 text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Dni planu ({sorted.length})</h4>
         <Btn variant="secondary" size="sm" onClick={() => setAddMenuModal(true)}>＋ Dodaj dzień</Btn>
       </div>
 
       {loading ? <Spinner /> : sorted.length === 0 ? (
-        <div className="p-5 text-center text-text-muted text-sm bg-background rounded-xl">
+        <div className="p-5 text-center text-sm rounded-xl" style={{ background: 'var(--color-background)', color: 'var(--color-text-muted)' }}>
           Brak dni. Dodaj pierwszy dzień planu.
         </div>
       ) : (
@@ -230,7 +214,7 @@ function DietPlanDetail({ plan, onClose, toast }) {
 
       {mealModal && (
         <Modal title={`Dodaj posiłek — Dzień ${mealModal.day_number}`} onClose={() => setMealModal(null)} width="max-w-[400px]">
-          <div className="grid gap-3.5">
+          <div className="grid gap-4">
             <Select label="Typ posiłku" value={mealForm.meal_type} onChange={v => setMealForm(f => ({ ...f, meal_type: v }))} options={MEAL_TYPES} placeholder="Wybierz typ…" required />
             <Select label="Przepis" value={mealForm.recipe} onChange={v => setMealForm(f => ({ ...f, recipe: v }))} options={recipes.map(r => ({ value: String(r.id), label: r.name }))} placeholder="Wybierz przepis…" required />
             <div className="flex gap-2.5 justify-end mt-1">
@@ -252,32 +236,36 @@ function DayMenuCard({ menu, recipes, onAddMeal, onRemoveMeal, onRemoveMenu }) {
   const MEAL_ICONS = { BREAKFAST: "🌅", LUNCH: "🍎", DINNER: "🍽️", SNACK: "🥐", SUPPER: "🌙" };
 
   return (
-    <div className="border border-border rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 bg-background cursor-pointer" onClick={() => setExpanded(e => !e)}>
+    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--color-border)' }}>
+      <div className="flex items-center justify-between px-4 py-3 cursor-pointer" style={{ background: 'var(--color-background)' }} onClick={() => setExpanded(e => !e)}>
         <div className="flex items-center gap-2.5">
-          <span className="font-bold text-[15px] text-text">Dzień {menu.day_number}</span>
-          <Badge variant="accent">{meals.length} posiłków</Badge>
+          <span className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>Dzień {menu.day_number}</span>
+          <span className="text-xs px-2 py-0.5 rounded-md font-medium" style={{ background: 'var(--color-accent-xlight)', color: 'var(--color-accent)' }}>{meals.length} posiłków</span>
         </div>
         <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
-          <Btn variant="ghost" size="sm" onClick={onAddMeal}>＋ Posiłek</Btn>
+          <Btn variant="ghost" size="sm" onClick={onAddMeal}>＋</Btn>
           <Btn variant="ghost" size="sm" onClick={onRemoveMenu}>🗑️</Btn>
-          <span className="text-text-muted cursor-pointer px-2 py-1 text-sm ml-1" onClick={() => setExpanded(e => !e)}>{expanded ? "▲" : "▼"}</span>
+          <span className="text-xs px-1.5 py-1 cursor-pointer" style={{ color: 'var(--color-text-muted)' }} onClick={() => setExpanded(e => !e)}>{expanded ? "▲" : "▼"}</span>
         </div>
       </div>
       {expanded && (
-        <div className="px-4 pt-2 pb-3">
+        <div className="px-4 pt-2 pb-3" style={{ background: 'var(--color-surface)' }}>
           {meals.length === 0 ? (
-            <div className="py-3 text-text-muted text-[13px] text-center">Brak posiłków — dodaj pierwszy.</div>
+            <div className="py-3 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>Brak posiłków — dodaj pierwszy.</div>
           ) : (
-            <div className="grid gap-1.5 mt-2">
+            <div className="grid gap-1.5 mt-1">
               {meals.map(meal => (
-                <div key={meal.id} className="flex justify-between items-center py-2 px-3 bg-surface rounded-lg border border-border">
-                  <span className="text-[13px]">
-                    {MEAL_ICONS[meal.meal_type] || "🍴"} <strong>{MEAL_LABELS[meal.meal_type] || meal.meal_type}</strong>
+                <div key={meal.id} className="flex justify-between items-center py-2 px-3 rounded-xl text-sm" style={{ background: 'var(--color-background)', border: '1px solid var(--color-border)' }}>
+                  <span>
+                    {MEAL_ICONS[meal.meal_type] || "🍴"}{" "}
+                    <strong style={{ color: 'var(--color-text)' }}>{MEAL_LABELS[meal.meal_type] || meal.meal_type}</strong>
                     {" · "}
-                    <span className="text-text-muted">{recipes.find(r => r.id === meal.recipe)?.name ?? `Przepis #${meal.recipe}`}</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}>{recipes.find(r => r.id === meal.recipe)?.name ?? `Przepis #${meal.recipe}`}</span>
                   </span>
-                  <button onClick={() => { onRemoveMeal(meal.id); reload(); }} className="bg-transparent border-none cursor-pointer text-text-muted text-sm px-1.5 py-0.5 rounded hover:bg-background">✕</button>
+                  <button onClick={() => { onRemoveMeal(meal.id); reload(); }} className="border-0 cursor-pointer text-sm px-1.5 py-0.5 rounded-lg transition-all"
+                    style={{ background: 'transparent', color: 'var(--color-text-muted)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--color-background)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>✕</button>
                 </div>
               ))}
             </div>
