@@ -6,27 +6,17 @@ import DietPlansPanel from "./pages/DietPlansPanel";
 import SettingsPanel from "./pages/SettingsPanel";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import DietitianDashboard from "./pages/DietitianDashboard";
+import FindDietitian from "./pages/FindDietitian";
 import { apiFetch } from "./services/api";
 import { MdFastfood } from "react-icons/md";
 import { RxDashboard } from "react-icons/rx";
 import { FaListUl } from "react-icons/fa";
+import { FaUserGroup, FaRegCalendar } from "react-icons/fa6";
 import { TbToolsKitchen3, TbSettings } from "react-icons/tb";
-import { FaRegCalendar } from "react-icons/fa6";
-import { CiSettings } from "react-icons/ci";
 
 export const ThemeContext = createContext({ dark: false, toggle: () => { } });
 export const useTheme = () => useContext(ThemeContext);
-
-const NAV = [
-  { id: "dashboard", label: "Dashboard", icon: (active) => <RxDashboard /> },
-  { id: "products", label: "Products", icon: (active) => <FaListUl /> },
-  { id: "recipes", label: "Recipes", icon: (active) => <TbToolsKitchen3 /> },
-  { id: "diet-plans", label: "Diet plans", icon: (active) => <FaRegCalendar /> },
-  {
-    id: "settings", label: "Settings", icon: (active) => <TbSettings />
-    , bottom: true
-  },
-];
 
 export default function App() {
   const [dark, setDark] = useState(() => localStorage.getItem("theme") === "dark");
@@ -89,8 +79,23 @@ export default function App() {
     );
   }
 
+  const NAV = [
+    { id: "dashboard", label: "Dashboard", icon: () => <RxDashboard /> },
+    { id: "products", label: "Products", icon: () => <FaListUl /> },
+    { id: "recipes", label: "Recipes", icon: () => <TbToolsKitchen3 /> },
+    { id: "diet-plans", label: "Diet plans", icon: () => <FaRegCalendar /> },
+    ...(user?.role === 'DIETITIAN' ? [
+      { id: "patients", label: "Podopieczni", icon: () => <FaUserGroup /> },
+    ] : []),
+    ...(user?.role !== 'DIETITIAN' && !user?.dietitian ? [
+      { id: "find-dietitian", label: "Znajdź dietetyka", icon: () => <FaUserGroup /> },
+    ] : []),
+    { id: "settings", label: "Settings", icon: () => <TbSettings />, bottom: true },
+  ];
+
   const mainNav = NAV.filter(n => !n.bottom);
   const bottomNav = NAV.filter(n => n.bottom);
+  const role = user?.role
   const name = user?.first_name || user?.username || "User";
   const initials = name.slice(0, 1).toUpperCase();
 
@@ -131,7 +136,7 @@ export default function App() {
                   onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-sidebar-muted)'; } }}
                 >
                   {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full" style={{ background: 'var(--color-accent)' }}></div>}
-                  <span style={{ color: active ? 'var(--color-accent)' : 'inherit' }}>{n.icon(active)}</span>
+                  <span style={{ color: active ? 'var(--color-accent)' : 'inherit' }}>{n.icon()}</span>
                   <span className="text-sm font-medium" style={{ color: active ? 'var(--color-accent)' : 'inherit', fontWeight: active ? '600' : '500' }}>{n.label}</span>
                 </button>
               );
@@ -147,7 +152,7 @@ export default function App() {
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--color-sidebar-text)' }}>{name}</div>
+                <div className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--color-sidebar-text)' }}>{role}</div>
                 <div className="text-[11px] truncate" style={{ color: 'var(--color-sidebar-muted)' }}>{user?.email || ''}</div>
               </div>
             </div>
@@ -165,7 +170,7 @@ export default function App() {
                   onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'var(--color-sidebar-text)'; }}
                   onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-sidebar-muted)'; } }}
                 >
-                  <span style={{ color: active ? 'var(--color-accent)' : 'inherit' }}>{n.icon(active)}</span>
+                  <span style={{ color: active ? 'var(--color-accent)' : 'inherit' }}>{n.icon()}</span>
                   <span className="text-sm font-medium">{n.label}</span>
                 </button>
               );
@@ -190,6 +195,8 @@ export default function App() {
                 {page === "recipes" && <RecipesPanel toast={showToast} />}
                 {page === "diet-plans" && <DietPlansPanel toast={showToast} />}
                 {page === "settings" && <SettingsPanel user={user} setUser={setUser} toast={showToast} onLogout={handleLogout} />}
+                {page === "patients" && <DietitianDashboard user={user} toast={showToast} />}
+                {page === "find-dietitian" && <FindDietitian toast={showToast} />}
               </>
             )}
           </div>

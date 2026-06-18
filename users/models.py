@@ -4,7 +4,7 @@ from django.core.validators import MinValueValidator
 
 class User(AbstractUser):
     ROLE_CHOICES = [
-        ('DIETITAN', 'Dietitian'),
+        ('DIETITIAN', 'Dietitian'),
         ('PATIENT', 'Patient'),
         ('STANDARD', 'Standard User'),
     ]
@@ -21,7 +21,7 @@ class User(AbstractUser):
         verbose_name='Role'
     )
 
-    dietetitian = models.ForeignKey(
+    dietitian = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
         null=True,
@@ -63,3 +63,31 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"
+    
+class DietitianRequest(models.Model):
+    STATUS_CHOICES = [
+        ('PENDING', 'Oczekujące'),
+        ('ACCEPTED', 'Zaakceptowane'),
+        ('REJECTED', 'Odrzucone'),
+    ]
+
+    patient = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='sent_requests',
+    )
+    dietitian = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='received_requests',
+    )
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
+    created_at = models.DateTimeField(auto_now_add=True)
+    message = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ('patient', 'dietitian')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.patient} → {self.dietitian} ({self.status})"

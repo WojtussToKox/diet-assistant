@@ -2,13 +2,15 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import User
 from django.contrib.auth import get_user_model
+from .models import User, DietitianRequest
 
 User = get_user_model()
 
 class UserMeSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'height_cm', 'weight_kg']
+        fields = ['id', 'username', 'email', 'first_name', 'role',
+                  'is_staff', 'dietitian', 'height_cm', 'weight_kg']
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     
@@ -49,3 +51,28 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['first_name'] = self.user.first_name
 
         return data
+
+class PatientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name',
+                  'height_cm', 'weight_kg']
+        
+class DietitianPublicSerializer(serializers.ModelSerializer):
+    """Lista dietetyków do wyboru przy wysyłaniu prośby."""
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'first_name', 'last_name', 'email']
+
+class DietitianRequestSerializer(serializers.ModelSerializer):
+    patient_name = serializers.CharField(source='patient.get_full_name', read_only=True)
+    patient_username = serializers.CharField(source='patient.username', read_only=True)
+    dietitian_name = serializers.CharField(source='dietitian.get_full_name', read_only=True)
+    dietitian_username = serializers.CharField(source='dietitian.username', read_only=True)
+
+    class Meta:
+        model = DietitianRequest
+        fields = ['id', 'patient', 'patient_name', 'patient_username',
+                  'dietitian', 'dietitian_name', 'dietitian_username',
+                  'status', 'message', 'created_at']
+        read_only_fields = ['id', 'status', 'created_at', 'patient']
