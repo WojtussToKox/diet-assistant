@@ -4,10 +4,10 @@ import { useState } from "react";
 import { Spinner } from "../components/ui/Spinner";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Button as Btn } from "../components/ui/Button";
+import { AiOutlineUserDelete } from "react-icons/ai";
 
-function PatientCard({ patient }) {
+function PatientCard({ patient, reload, toast }) {
     const { data: plans } = useList(`/diet-plans/`);
-    // plany dietetyka są już filtrowane po jego ID po stronie API
     const patientPlans = plans.filter(p => p.patient === patient.id);
     const today = new Date().toISOString().slice(0, 10);
     const activePlan = patientPlans.find(
@@ -16,34 +16,53 @@ function PatientCard({ patient }) {
 
     const initials = (patient.first_name || patient.username).slice(0, 1).toUpperCase();
 
+    const removePatient = async () => {
+        const name = patient.first_name || patient.username;
+        if (!window.confirm(`Are you sure you want to end cooperation with patient ${name}?`)) return;
+
+        try {
+            await apiFetch(`/users/end-cooperation/${patient.id}/`, { method: "POST" });
+            toast("Cooperation ended successfully.", "success");
+            reload();
+        } catch (e) {
+            toast("Error: " + e.message, "error");
+        }
+    };
+
     return (
         <div className="rounded-2xl p-5"
             style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-            <div className="flex items-center gap-3 mb-4">
+
+            <div className="flex items-start gap-3 mb-4">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0"
                     style={{ background: 'var(--color-accent-xlight)', color: 'var(--color-accent)' }}>
                     {initials}
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 pt-0.5">
                     <div className="font-semibold text-sm truncate" style={{ color: 'var(--color-text)' }}>
                         {patient.first_name ? `${patient.first_name} ${patient.last_name || ''}`.trim() : patient.username}
                     </div>
-                    <div className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-text-muted)' }}>
+                    <div className="text-xs truncate mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
                         {patient.email || `@${patient.username}`}
                     </div>
                 </div>
-                {activePlan && (
-                    <span className="text-xs px-2 py-1 rounded-lg font-semibold shrink-0"
-                        style={{ background: 'var(--color-accent-xlight)', color: 'var(--color-accent)' }}>
-                        aktywna dieta
-                    </span>
-                )}
+
+                <button
+                    onClick={removePatient}
+                    title="End cooperation"
+                    className="w-8 h-8 rounded-lg flex items-center justify-center border-0 cursor-pointer transition-colors shrink-0"
+                    style={{ background: '#FEF2F2', color: '#EF4444' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#FEE2E2'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#FEF2F2'}
+                >
+                    <AiOutlineUserDelete />
+                </button>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                 {patient.height_cm && (
                     <div className="px-3 py-2 rounded-lg" style={{ background: 'var(--color-background)' }}>
-                        <span style={{ color: 'var(--color-text-muted)' }}>Wzrost</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>Height</span>
                         <div className="font-mono font-bold mt-0.5" style={{ color: 'var(--color-text)' }}>
                             {patient.height_cm} cm
                         </div>
@@ -51,7 +70,7 @@ function PatientCard({ patient }) {
                 )}
                 {patient.weight_kg && (
                     <div className="px-3 py-2 rounded-lg" style={{ background: 'var(--color-background)' }}>
-                        <span style={{ color: 'var(--color-text-muted)' }}>Waga</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>Weight</span>
                         <div className="font-mono font-bold mt-0.5" style={{ color: 'var(--color-text)' }}>
                             {patient.weight_kg} kg
                         </div>
@@ -183,7 +202,7 @@ export default function DietitianDashboard({ user, toast }) {
                     sub="Nowi pacjenci mogą wysłać Ci prośbę o współpracę." />
             ) : (
                 <div className="grid grid-cols-2 gap-4">
-                    {patients.map(p => <PatientCard key={p.id} patient={p} />)}
+                    {patients.map(p => <PatientCard key={p.id} patient={p} reload={reload} toast={toast} />)}
                 </div>
             )}
         </div>

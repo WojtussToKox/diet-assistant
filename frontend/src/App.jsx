@@ -87,7 +87,7 @@ export default function App() {
     ...(user?.role === 'DIETITIAN' ? [
       { id: "patients", label: "Podopieczni", icon: () => <FaUserGroup /> },
     ] : []),
-    ...(user?.role !== 'DIETITIAN' && !user?.dietitian ? [
+    ...(user?.role !== 'DIETITIAN' ? [
       { id: "find-dietitian", label: "Znajdź dietetyka", icon: () => <FaUserGroup /> },
     ] : []),
     { id: "settings", label: "Settings", icon: () => <TbSettings />, bottom: true },

@@ -136,3 +136,36 @@ class DietitianRequestViewSet(viewsets.ModelViewSet):
         req.save()
 
         return Response({'detail': 'Rejected.'})
+    
+class EndCooperationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, target_user_id):
+        user = request.user
+        # Scenario A: Logged-in user is a dietitian, and target_user_id is their patient
+        patient_as_target = User.objects.filter(id=target_user_id, dietitian=user).first()
+        # Scenario B: Logged-in user is a patient, and target_user_id is their dietitian
+        dietitian_as_target = None
+        if getattr(user, 'dietitian', None) and user.dietitian.id == target_user_id:
+            dietitian_as_target = user.dietitian
+        # Identify who is who before removing the relationship
+        if patient_as_target:
+            patient = patient_as_target
+            dietitian = user
+        elif dietitian_as_target:
+            patient = user
+            dietitian = dietitian_as_target
+        else:
+            return Response({"detail": "No active cooperation found between you."}, status=400)
+
+        # 1. Unlink the dietitian from the patient's profile
+        patient.dietitian = None
+        patient.save()
+        # 2. Delete the related (accepted) request
+        DietitianRequest.objects.filter(
+            patient=patient, 
+            dietitian=dietitian, 
+            status='ACCEPTED'
+        ).delete()
+
+        return Response({"detail": "Cooperation has been successfully ended."}, status=200)

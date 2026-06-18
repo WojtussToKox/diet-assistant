@@ -5,6 +5,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     RegisterView, UserMeView, ChangePasswordView,
     MyPatientsView, DietitianListView, DietitianRequestViewSet,
+    EndCooperationView
 )
 
 router = DefaultRouter()
@@ -18,4 +19,5 @@ urlpatterns = [
     path('my-patients/', MyPatientsView.as_view()),
     path('dietitians/', DietitianListView.as_view()),
     path('', include(router.urls)),
+    path('end-cooperation/<int:target_user_id>/', EndCooperationView.as_view(), name='end-cooperation'),
 ]

@@ -54,6 +54,18 @@ export default function FindDietitian({ toast }) {
         }
     };
 
+    const removeDietitian = async (dietitianId) => {
+        if (!window.confirm("Are you sure you want to end cooperation with this dietitian?")) return;
+
+        try {
+            await apiFetch(`/users/end-cooperation/${dietitianId}/`, { method: "POST" });
+            toast("Cooperation ended successfully.", "success");
+            reload();
+        } catch (e) {
+            toast("Error: " + e.message, "error");
+        }
+    };
+
     return (
         <div className="pb-16 animate-fadeUp">
             <div className="mb-8">
@@ -129,10 +141,21 @@ export default function FindDietitian({ toast }) {
                                 </div>
 
                                 {isAccepted ? (
-                                    <span className="text-xs font-semibold px-3 py-1.5 rounded-xl"
-                                        style={{ background: 'var(--color-accent-xlight)', color: 'var(--color-accent)' }}>
-                                        Twój dietetyk ✓
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-semibold px-3 py-1.5 rounded-xl"
+                                            style={{ background: 'var(--color-accent-xlight)', color: 'var(--color-accent)' }}>
+                                            Your dietitian ✓
+                                        </span>
+                                        <button
+                                            onClick={() => removeDietitian(d.id)}
+                                            className="text-xs font-bold px-3 py-1.5 rounded-xl border-0 cursor-pointer transition-colors"
+                                            style={{ background: '#FEF2F2', color: '#EF4444' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = '#FEE2E2'}
+                                            onMouseLeave={e => e.currentTarget.style.background = '#FEF2F2'}
+                                        >
+                                            End
+                                        </button>
+                                    </div>
                                 ) : isPending ? (
                                     <span className="text-xs font-semibold px-3 py-1.5 rounded-xl"
                                         style={{ background: '#FEF3C7', color: '#92400E' }}>
