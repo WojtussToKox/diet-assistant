@@ -3,9 +3,10 @@ import { apiFetch } from "../services/api";
 import { Spinner } from "../components/ui/Spinner";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Button as Btn } from "../components/ui/Button";
-import { AiOutlineUserDelete } from "react-icons/ai";
 import { useState, useEffect, useRef } from "react";
+import { FaTimes, FaUsers } from "react-icons/fa";
 
+// SearchablePlanSelect
 function SearchablePlanSelect({ plans, currentPlanId, onAssign, disabled }) {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState("");
@@ -44,7 +45,7 @@ function SearchablePlanSelect({ plans, currentPlanId, onAssign, disabled }) {
                             placeholder="Search plan by name..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            className="w-full p-2 text-sm outline-none rounded-lg border border-border"
+                            className="w-full p-2 text-sm outline-none rounded-lg border border-border transition-colors"
                             style={{ background: 'var(--color-background)', color: 'var(--color-text)' }}
                         />
                     </div>
@@ -64,12 +65,7 @@ function SearchablePlanSelect({ plans, currentPlanId, onAssign, disabled }) {
                                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-accent-xlight)'; e.currentTarget.style.color = 'var(--color-accent)'; }}
                                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text)'; }}
                             >
-                                <div className="min-w-0">
-                                    <span className="truncate block">{plan.name}</span>
-                                    {plan.dietitian_name && (
-                                        <span className="text-[10px] opacity-60 block">{plan.dietitian_name}</span>
-                                    )}
-                                </div>
+                                <span className="truncate">{plan.name}</span>
                                 <span className="text-[10px] ml-2 shrink-0 opacity-70">{plan.daily_calories_goal} kcal</span>
                             </div>
                         ))}
@@ -80,15 +76,14 @@ function SearchablePlanSelect({ plans, currentPlanId, onAssign, disabled }) {
     );
 }
 
+// PatientCard
 function PatientCard({ patient, reload, toast }) {
     const { data: plans, reload: reloadPlans } = useList(`/diet-plans/`);
     const [assigning, setAssigning] = useState(false);
 
-    // Find active plan for this patient
     const patientPlans = plans.filter(p => p.patient === patient.id);
     const activePlan = patientPlans.length > 0 ? patientPlans[patientPlans.length - 1] : null;
 
-    // Filter available plans to show only unassigned templates OR the currently assigned one
     const availablePlans = plans.filter(p => p.patient === null || p.patient === patient.id);
 
     const initials = (patient.first_name || patient.username).slice(0, 1).toUpperCase();
@@ -106,7 +101,6 @@ function PatientCard({ patient, reload, toast }) {
         }
     };
 
-    // PATCH request to assign the plan to the patient
     const assignPlan = async (planId) => {
         setAssigning(true);
         try {
@@ -149,11 +143,10 @@ function PatientCard({ patient, reload, toast }) {
                     onMouseEnter={e => e.currentTarget.style.background = '#FEE2E2'}
                     onMouseLeave={e => e.currentTarget.style.background = '#FEF2F2'}
                 >
-                    ✕
+                    <FaTimes />
                 </button>
             </div>
 
-            {/* Display active plan info if it exists */}
             {activePlan && (
                 <div className="px-4 py-3 rounded-xl mb-3" style={{ background: 'var(--color-background)' }}>
                     <div className="flex justify-between items-start mb-1">
@@ -167,15 +160,9 @@ function PatientCard({ patient, reload, toast }) {
                     <div className="font-medium text-sm truncate" style={{ color: 'var(--color-text)' }}>
                         {activePlan.name}
                     </div>
-                    {activePlan.dietitian_name && (
-                        <div className="text-xs mt-1" style={{ color: 'var(--color-text-subtle)' }}>
-                            autor: {activePlan.dietitian_name}
-                        </div>
-                    )}
                 </div>
             )}
 
-            {/* Searchable Dropdown for assigning a plan */}
             <SearchablePlanSelect
                 plans={availablePlans}
                 currentPlanId={activePlan?.id}
@@ -191,61 +178,58 @@ function PendingRequests({ toast, onAccepted }) {
     const [acting, setActing] = useState(null);
 
     const pending = requests.filter(r => r.status === 'PENDING');
-    if (loading || pending.length === 0) return null;
 
     const handle = async (id, action) => {
         setActing(id);
         try {
             await apiFetch(`/users/dietitian-requests/${id}/${action}/`, { method: "POST" });
-            toast(action === 'accept' ? "Zaakceptowano!" : "Odrzucono.", "success");
+            toast(`Request ${action === 'accept' ? 'accepted' : 'rejected'}.`, "success");
             reload();
             if (action === 'accept') onAccepted();
         } catch (e) {
-            toast("Błąd: " + e.message, "error");
+            toast("Error: " + e.message, "error");
         } finally {
             setActing(null);
         }
     };
 
+    if (loading || pending.length === 0) return null;
+
     return (
-        <div className="mb-8">
-            <h3 className="text-sm font-semibold uppercase tracking-wide mb-3"
-                style={{ color: 'var(--color-text-muted)' }}>
-                Oczekujące prośby ({pending.length})
-            </h3>
-            <div className="grid gap-2">
+        <div className="mb-10">
+            <div className="flex items-center gap-3 mb-4">
+                <h3 className="m-0 text-lg font-bold" style={{ color: 'var(--color-text)' }}>Cooperation requests</h3>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--color-accent)', color: '#fff' }}>
+                    {pending.length} {pending.length === 1 ? 'new request' : 'new requests'}
+                </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
                 {pending.map(r => (
-                    <div key={r.id}
-                        className="flex items-center justify-between px-5 py-4 rounded-2xl"
-                        style={{
-                            background: 'var(--color-surface)',
-                            border: '2px solid #FCD34D',
-                        }}>
+                    <div key={r.id} className="p-4 rounded-2xl flex flex-col justify-between border border-accent/30" style={{ background: 'var(--color-accent-xlight)' }}>
                         <div>
-                            <div className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>
-                                {r.patient_name || r.patient_username}
-                            </div>
+                            <div className="text-xs font-bold uppercase tracking-wider mb-2 opacity-60" style={{ color: 'var(--color-accent)' }}>Pending request</div>
+                            <div className="font-semibold text-base" style={{ color: 'var(--color-text)' }}>{r.patient_name}</div>
                             {r.message && (
-                                <div className="text-xs mt-1 italic" style={{ color: 'var(--color-text-muted)' }}>
+                                <div className="mt-2 text-sm italic opacity-80" style={{ color: 'var(--color-text)' }}>
                                     "{r.message}"
                                 </div>
                             )}
                         </div>
-                        <div className="flex gap-2 shrink-0">
+                        <div className="flex gap-2 mt-4">
                             <Btn
-                                size="sm"
-                                variant="secondary"
+                                variant="secondary" size="sm"
                                 disabled={acting === r.id}
                                 onClick={() => handle(r.id, 'reject')}
                             >
-                                Odrzuć
+                                Reject
                             </Btn>
                             <Btn
                                 size="sm"
                                 disabled={acting === r.id}
                                 onClick={() => handle(r.id, 'accept')}
                             >
-                                Akceptuj
+                                Accept
                             </Btn>
                         </div>
                     </div>
@@ -262,18 +246,18 @@ export default function DietitianDashboard({ user, toast }) {
         <div className="pb-16 animate-fadeUp">
             <div className="mb-8">
                 <h2 className="m-0 text-2xl font-bold" style={{ color: 'var(--color-text)' }}>
-                    Moi podopieczni
+                    My Patients
                 </h2>
                 <p className="m-0 mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                    {loading ? '…' : `${patients.length} przypisanych pacjentów`}
+                    {loading ? '…' : `${patients.length} assigned patients`}
                 </p>
             </div>
 
             <PendingRequests toast={toast} onAccepted={reload} />
 
             {loading ? <Spinner /> : patients.length === 0 ? (
-                <EmptyState icon="👥" title="Brak podopiecznych"
-                    sub="Nowi pacjenci mogą wysłać Ci prośbę o współpracę." />
+                <EmptyState icon={<FaUsers className="text-4xl opacity-50" />} title="No patients"
+                    sub="New patients can send you a cooperation request." />
             ) : (
                 <div className="grid grid-cols-2 gap-4">
                     {patients.map(p => <PatientCard key={p.id} patient={p} reload={reload} toast={toast} />)}
