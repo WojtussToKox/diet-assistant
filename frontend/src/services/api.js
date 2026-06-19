@@ -16,15 +16,36 @@ export async function apiFetch(path, opts = {}) {
     headers,
   });
 
+  // Obsługa błędów (np. 400, 401, 500)
   if (!res.ok) {
     if (res.status === 401) {
       console.warn("Brak autoryzacji lub token wygasł.");
     }
-    const err = await res.json().catch(() => ({}));
-    throw Object.assign(new Error(res.statusText), { status: res.status, data: err });
+
+    // Pobieramy błąd jako tekst (bezpieczniejsze przy błędach z serwera np. stronach HTML)
+    const errText = await res.text();
+    let err = {};
+    try {
+      err = errText ? JSON.parse(errText) : {};
+    } catch (e) {
+      console.warn("Nie udało się sparsować błędu JSON:", errText);
+    }
+
+    throw Object.assign(new Error(res.statusText || `HTTP Error ${res.status}`), { status: res.status, data: err });
   }
 
+  // 204 No Content (zazwyczaj przy DELETE)
   if (res.status === 204) return null;
 
-  return res.json();
+  // --- KRYTYCZNA POPRAWKA PONIŻEJ ---
+  // Odczytujemy odpowiedź jako czysty tekst. 
+  // Zapobiega to błędowi "Unexpected end of JSON input" w przypadku pustej odpowiedzi (np. przy POST)
+  const text = await res.text();
+
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch (error) {
+    console.warn("Serwer zwrócił sukces, ale odpowiedź nie jest poprawnym JSON-em:", text);
+    return null;
+  }
 }

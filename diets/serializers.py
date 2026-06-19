@@ -1,6 +1,6 @@
 from rest_framework import serializers
-from .models import Recipe, RecipeIngredient, DietPlan, DailyMenu, ScheduledMeal
-
+from .models import Recipe, RecipeIngredient, DietPlan, DailyMenu, ScheduledMeal, MealLog
+from .services import DietCalculatorService
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
@@ -17,13 +17,9 @@ class RecipeListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = ['id', 'name', 'description', 'total_calories']
-
     def get_total_calories(self, obj):
-        total = 0
-        for ingredient in obj.recipeingredient_set.all():
-            if ingredient.product and ingredient.product.calories_per_100g:
-                total += (ingredient.product.calories_per_100g / 100) * ingredient.weight_in_grams
-        return round(total)
+        macros = DietCalculatorService.calculate_recipe(obj)
+        return float(macros['calories'])
 
 
 class RecipeDetailSerializer(serializers.ModelSerializer):
@@ -147,3 +143,10 @@ class DietPlanDetailSerializer(serializers.ModelSerializer):
         if not obj.dietitian:
             return None
         return obj.dietitian.first_name or obj.dietitian.username
+    
+class MealLogSerializer(serializers.ModelSerializer):
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    class Meta:
+        model = MealLog
+        fields = '__all__'

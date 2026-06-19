@@ -1,154 +1,299 @@
+import { useState } from "react";
 import { useList } from "../hooks/useList";
+import { apiFetch } from "../services/api";
+import { Spinner } from "../components/ui/Spinner";
+import { EmptyState } from "../components/ui/EmptyState";
+import { Button as Btn } from "../components/ui/Button";
+import { Modal } from "../components/ui/Modal";
+import { Input } from "../components/ui/Input";
 
-function StatCard({ label, value, unit, accent = false }) {
-  return (
-    <div className="rounded-2xl p-5 flex flex-col gap-1 relative overflow-hidden"
-      style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-      <div className="absolute top-0 left-0 w-0.5 h-full rounded-r-full" style={{ background: 'var(--color-accent)' }} />
-      <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--color-text-muted)' }}>{label}</span>
-      <div className="flex items-baseline gap-1.5 mt-1">
-        <span className="font-black text-3xl leading-none font-['Inter']" style={{ color: accent ? 'var(--color-accent)' : 'var(--color-text)' }}>
-          {value ?? '—'}
-        </span>
-        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{unit}</span>
-      </div>
-    </div>
-  );
-}
+const MEALS = [
+  { id: "BREAKFAST", name: "Breakfast", icon: "🍳" },
+  { id: "LUNCH", name: "Lunch", icon: "🥪" },
+  { id: "DINNER", name: "Dinner", icon: "🍲" },
+  { id: "SNACK", name: "Snack", icon: "🍎" },
+  { id: "SUPPER", name: "Supper", icon: "🌙" },
+];
 
-function MacroRow({ label, value, unit, pct, color }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs font-medium w-14 shrink-0" style={{ color: 'var(--color-text-muted)' }}>{label}</span>
-      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--color-background)' }}>
-        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
-      </div>
-      <span className="text-xs font-bold font-mono w-10 text-right" style={{ color: 'var(--color-text)' }}>{value}{unit}</span>
-    </div>
-  );
-}
+export default function Dashboard({ user, toast }) {
+  const safeToast = typeof toast === "function" ? toast : (msg, type) => console.warn(`[toast:${type}]`, msg);
+  const todayObj = new Date();
+  const year = todayObj.getFullYear();
+  const month = String(todayObj.getMonth() + 1).padStart(2, '0');
+  const day = String(todayObj.getDate()).padStart(2, '0');
 
-export default function Dashboard({ user }) {
+  const todayStr = `${year}-${month}-${day}`;
+  const dayName = todayObj.toLocaleDateString('en-US', { weekday: 'long' });
+
+  const jsDay = todayObj.getDay();
+  const todayDayId = jsDay === 0 ? 7 : jsDay;
+
   const { data: plans } = useList("/diet-plans/");
+  const { data: dailyMenus } = useList("/daily-menus/");
+  const { data: scheduledMeals } = useList("/scheduled-meals/");
+  const { data: logs, loading, reload: reloadLogs } = useList(`/meal-logs/?date=${todayStr}`);
 
-  const name = user?.first_name || user?.username || "User";
-  const height = user?.height_cm;
-  const weight = user?.weight_kg;
+  const { data: recipes } = useList("/recipes/");
+  const { data: products } = useList("/products/");
 
-  const today = new Date();
-  const hour = today.getHours();
-  const dateStr = today.toLocaleDateString('en-EN', { weekday: 'long', month: 'long', day: 'numeric' });
+  const [addModal, setAddModal] = useState(null);
+  const [search, setSearch] = useState("");
+  const [tab, setTab] = useState("recipes");
 
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Hello" : "Good evening";
+  const patientPlans = plans.filter(p => p.patient === user?.id);
+  const myPlan = patientPlans.length > 0 ? patientPlans[patientPlans.length - 1] : null;
+  const hasPlan = !!myPlan;
 
-  // Demo calorie data
-  const goal = 1840;
-  const consumed = 1160;
-  const remaining = goal - consumed;
-  const pct = Math.min(100, (consumed / goal) * 100);
-  const r = 40;
-  const circ = 2 * Math.PI * r;
-  const dash = circ - (pct / 100) * circ;
+  const todayMenu = hasPlan ? dailyMenus.find(m => m.diet_plan === myPlan.id && m.day_of_week === todayDayId) : null;
+  const todayScheduled = todayMenu ? scheduledMeals.filter(m => m.daily_menu === todayMenu.id) : [];
 
-  // Active plans count
-  const todayStr = today.toISOString().slice(0, 10);
-  const activePlans = plans.filter(p => p.start_date <= todayStr && todayStr <= p.end_date).length;
+  let consumedKcal = 0;
+  logs.forEach(log => {
+    if (log.recipe) {
+      const r = recipes.find(rec => rec.id === log.recipe);
+      if (r && r.total_calories) consumedKcal += r.total_calories;
+    } else if (log.product) {
+      const p = products.find(prod => prod.id === log.product);
+      if (p && p.calories_per_100g) consumedKcal += (p.calories_per_100g / 100) * log.weight_in_grams;
+    }
+  });
+  consumedKcal = Math.round(consumedKcal);
+
+  const targetKcal = hasPlan ? myPlan.daily_calories_goal : (user?.daily_caloric_needs || 2000);
+  const remainingKcal = targetKcal - consumedKcal;
+  const progressPct = Math.min(100, (consumedKcal / targetKcal) * 100);
+
+  // --- ACTIONS ---
+
+  const togglePlannedMeal = async (scheduled) => {
+    const existingLog = logs.find(l =>
+      l.meal_type === scheduled.meal_type &&
+      l.recipe === scheduled.recipe &&
+      l.product === scheduled.product
+    );
+
+    try {
+      if (existingLog) {
+        await apiFetch(`/meal-logs/${existingLog.id}/`, { method: "DELETE" });
+      } else {
+        await apiFetch("/meal-logs/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            date: todayStr,
+            meal_type: scheduled.meal_type,
+            recipe: scheduled.recipe,
+            product: scheduled.product,
+            weight_in_grams: scheduled.weight_in_grams
+          })
+        });
+      }
+      if (reloadLogs) await reloadLogs();
+    } catch (e) {
+      safeToast("Error: " + e.message, "error");
+    }
+  };
+
+  const addManualFood = async (item, isRecipe) => {
+    let weight = null;
+    if (!isRecipe) {
+      weight = prompt(`Enter weight for: ${item.name} (in grams):`, "100");
+      if (!weight || isNaN(weight)) return;
+    }
+
+    const targetMealId = addModal.mealId;
+
+    try {
+      await apiFetch("/meal-logs/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          date: todayStr,
+          meal_type: targetMealId,
+          recipe: isRecipe ? item.id : null,
+          product: !isRecipe ? item.id : null,
+          weight_in_grams: weight ? parseInt(weight) : null
+        })
+      });
+
+      safeToast("Meal added!", "success");
+
+      await reloadLogs();
+
+      setSearch("");
+      setAddModal(null);
+    } catch (e) {
+      safeToast("Error: " + e.message, "error");
+    }
+  };
+
+  const removeLog = async (id) => {
+    try {
+      await apiFetch(`/meal-logs/${id}/`, { method: "DELETE" });
+      if (reloadLogs) await reloadLogs();
+    } catch (e) {
+      safeToast("Error: " + e.message, "error");
+    }
+  };
+
+  // --- HELPERS ---
+  const getItemName = (isRecipe, id) => {
+    if (isRecipe) return recipes.find(r => r.id === id)?.name || "Loading recipe...";
+    return products.find(p => p.id === id)?.name || "Loading product...";
+  };
+
+  const filteredSidebar = (tab === 'recipes' ? recipes : products).filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
+
+  if (loading) return <Spinner />;
 
   return (
     <div className="pb-16 animate-fadeUp">
+      <h1 className="text-3xl font-black mb-2" style={{ color: 'var(--color-text)' }}>Welcome, {user.first_name || user.username}! 👋</h1>
+      <p className="text-sm font-medium mb-8" style={{ color: 'var(--color-text-muted)' }}>
+        It is {dayName}, {todayStr}
+      </p>
 
-      {/* Header */}
-      <div className="mb-10 flex items-start justify-between gap-6">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest m-0 mb-2" style={{ color: 'var(--color-text-muted)' }}>
-            {dateStr}
-          </p>
-          <h1 className="text-[38px] font-black leading-tight m-0" style={{ color: 'var(--color-text)' }}>
-            {greeting},<br />
-            <span style={{ color: 'var(--color-accent)' }}>{name}</span> 👋
-          </h1>
-          <p className="mt-2 m-0 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-            <strong style={{ color: 'var(--color-accent)' }}>{remaining} kcal</strong> left to reach your goal
-          </p>
-        </div>
-        {activePlans > 0 && (
-          <div className="rounded-2xl px-4 py-3 text-center shrink-0" style={{ background: 'var(--color-accent-xlight)', border: '1px solid var(--color-border)' }}>
-            <div className="font-black text-2xl leading-none font-mono" style={{ color: 'var(--color-accent)' }}>{activePlans}</div>
-            <div className="text-[10px] mt-1 font-semibold uppercase tracking-wide" style={{ color: 'var(--color-accent)' }}>
-              aktywny<br />plan
+      {/* Progress Card */}
+      <div className="p-6 rounded-2xl mb-8 shadow-sm" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+        <div className="flex justify-between items-end mb-4">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--color-text-muted)' }}>
+              {hasPlan ? `Goal from plan: ${myPlan.name}` : `Estimated Goal (TDEE)`}
+              {!hasPlan && (!user.weight_kg || !user.height_cm) && (
+                <span className="ml-2 text-accent lowercase opacity-70">(fill weight/height in settings!)</span>
+              )}
+            </div>
+            <div className="text-3xl font-black" style={{ color: 'var(--color-text)' }}>
+              {consumedKcal} <span className="text-lg text-text-muted font-semibold">/ {targetKcal} kcal</span>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <StatCard label="Weight" value={weight} unit="kg" />
-        <StatCard label="Height" value={height} unit="cm" />
-      </div>
-
-      {/* Calorie progress card */}
-      <div className="rounded-2xl p-6 flex items-center gap-8 mb-6"
-        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-
-        {/* Ring */}
-        <div className="relative w-[100px] h-[100px] shrink-0">
-          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-            <circle cx="50" cy="50" r={r} fill="none" strokeWidth="7" style={{ stroke: 'var(--color-background)' }} />
-            <circle
-              cx="50" cy="50" r={r} fill="none" strokeWidth="7"
-              strokeLinecap="round"
-              style={{
-                stroke: 'var(--color-accent)',
-                strokeDasharray: circ,
-                strokeDashoffset: dash,
-                transition: 'stroke-dashoffset 1s ease',
-                filter: 'drop-shadow(0 0 6px var(--color-accent-glow))',
-              }}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="font-mono font-black text-xl leading-none" style={{ color: 'var(--color-text)' }}>{consumed}</span>
-            <span className="text-[9px] font-semibold uppercase tracking-widest mt-0.5" style={{ color: 'var(--color-text-muted)' }}>kcal</span>
+          <div className="text-right">
+            <div className="text-sm font-bold" style={{ color: remainingKcal >= 0 ? 'var(--color-accent)' : '#EF4444' }}>
+              {remainingKcal >= 0 ? `${remainingKcal} remaining` : `${Math.abs(remainingKcal)} exceeded`}
+            </div>
           </div>
         </div>
 
-        {/* Macros */}
-        <div className="flex-1 space-y-3.5">
-          <div className="flex justify-between text-xs mb-1">
-            <span className="font-semibold" style={{ color: 'var(--color-text)' }}>Todays macro</span>
-            <span style={{ color: 'var(--color-text-muted)' }}>Goal: {goal} kcal</span>
-          </div>
-          <MacroRow label="Proteins" value="86" unit="g" pct={72} color="#3B82F6" />
-          <MacroRow label="Carbs" value="142" unit="g" pct={55} color="#10B981" />
-          <MacroRow label="Fat" value="44" unit="g" pct={38} color="#F59E0B" />
+        <div className="h-3 rounded-full overflow-hidden" style={{ background: 'var(--color-background)' }}>
+          <div className="h-full transition-all duration-500 ease-out"
+            style={{ width: `${progressPct}%`, background: progressPct > 100 ? '#EF4444' : 'var(--color-accent)' }}></div>
         </div>
       </div>
 
-      {/* Plans summary */}
-      {plans.length > 0 && (
-        <div className="mt-6">
-          <h3 className="text-sm font-semibold mb-3 m-0" style={{ color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Aktywne plany diety
-          </h3>
-          <div className="grid gap-2.5">
-            {plans.filter(p => p.start_date <= todayStr && todayStr <= p.end_date).slice(0, 3).map(plan => (
-              <div key={plan.id} className="flex items-center justify-between px-5 py-3.5 rounded-2xl"
-                style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-                <div>
-                  <div className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>{plan.name}</div>
-                  <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                    {plan.start_date} → {plan.end_date}
+      {/* SCENARIO A: Has assigned plan */}
+      {hasPlan ? (
+        <div>
+          <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Today's Menu</h2>
+          {todayScheduled.length === 0 ? (
+            <EmptyState icon="🍽️" title="Free day!" sub="Your dietitian hasn't scheduled anything for today." />
+          ) : (
+            <div className="bg-surface border border-border rounded-2xl shadow-sm overflow-hidden">
+              {MEALS.map((mealDef) => {
+                const mealsForThisType = todayScheduled.filter(m => m.meal_type === mealDef.id);
+                if (mealsForThisType.length === 0) return null; // Hide empty sections
+                const renderedGroups = MEALS.filter(md => todayScheduled.some(m => m.meal_type === md.id));
+                const isLast = renderedGroups[renderedGroups.length - 1].id === mealDef.id;
+
+                return (
+                  <div key={mealDef.id} className={`p-5 ${!isLast ? 'border-b border-dashed border-border' : ''}`}>
+                    <div className="font-bold text-sm text-text flex items-center gap-2 mb-3">
+                      <span>{mealDef.icon}</span> {mealDef.name}
+                    </div>
+
+                    <div className="grid gap-2">
+                      {mealsForThisType.map(meal => {
+                        const isEaten = logs.some(l => l.meal_type === meal.meal_type && l.recipe === meal.recipe && l.product === meal.product);
+
+                        return (
+                          <div key={meal.id} onClick={() => togglePlannedMeal(meal)}
+                            className={`p-4 rounded-xl cursor-pointer transition-all border flex items-center justify-between 
+                                                         ${isEaten ? 'bg-accent-xlight/30 border-accent/40' : 'bg-background border-border hover:border-accent'}`}>
+                            <div className="flex items-center gap-4">
+                              <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-colors ${isEaten ? 'bg-accent border-accent text-white' : 'border-border'}`}>
+                                {isEaten && "✓"}
+                              </div>
+                              <div className={`font-semibold text-sm transition-colors ${isEaten ? 'text-text-muted line-through opacity-70' : 'text-text'}`}>
+                                {getItemName(!!meal.recipe, meal.recipe || meal.product)}
+                                {!meal.recipe && <span className="ml-1 text-xs text-accent">({meal.weight_in_grams}g)</span>}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div>
+          <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Logged Today</h2>
+          <div className="bg-surface border border-border rounded-2xl shadow-sm overflow-hidden">
+            {MEALS.map((meal, index) => {
+              const mealLogs = logs.filter(l => l.meal_type === meal.id);
+
+              return (
+                <div key={meal.id} className={`p-5 ${index !== MEALS.length - 1 ? 'border-b border-dashed border-border' : ''}`}>
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="font-bold text-sm text-text flex items-center gap-2">
+                      <span>{meal.icon}</span> {meal.name}
+                    </div>
+                    <Btn size="sm" variant="ghost" onClick={() => setAddModal({ mealId: meal.id })}>＋ Add</Btn>
+                  </div>
+
+                  {mealLogs.length === 0 ? (
+                    <div className="text-xs text-text-muted mt-2">No meals logged yet.</div>
+                  ) : (
+                    <div className="space-y-2 mt-4">
+                      {mealLogs.map(log => (
+                        <div key={log.id} className="flex justify-between items-center p-3 rounded-xl bg-background border border-border">
+                          <div className="text-sm font-medium text-text">
+                            {getItemName(!!log.recipe, log.recipe || log.product)}
+                            {!log.recipe && <span className="ml-2 text-xs font-bold px-2 py-1 rounded bg-accent-xlight text-accent">{log.weight_in_grams}g</span>}
+                          </div>
+                          <button onClick={() => removeLog(log.id)} className="w-8 h-8 rounded-lg flex items-center justify-center border-0 cursor-pointer text-sm transition-colors bg-danger-light text-danger hover:opacity-80">
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="text-right">
-                  <div className="font-mono font-bold text-lg leading-none" style={{ color: 'var(--color-accent)' }}>{plan.daily_calories_goal}</div>
-                  <div className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>kcal/dzień</div>
-                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {addModal && (
+        <Modal title={`Add to: ${MEALS.find(m => m.id === addModal.mealId)?.name}`} onClose={() => setAddModal(null)} width="max-w-[500px]">
+          <div className="flex p-1 bg-background border border-border rounded-xl mb-4">
+            <button onClick={() => setTab('recipes')} className={`flex-1 py-2 text-sm font-semibold rounded-lg border-0 cursor-pointer transition-all ${tab === 'recipes' ? 'bg-surface shadow-sm text-accent' : 'bg-transparent text-text-muted'}`}>Recipes</button>
+            <button onClick={() => setTab('products')} className={`flex-1 py-2 text-sm font-semibold rounded-lg border-0 cursor-pointer transition-all ${tab === 'products' ? 'bg-surface shadow-sm text-accent' : 'bg-transparent text-text-muted'}`}>Products</button>
+          </div>
+
+          <Input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+
+          <div className="mt-4 max-h-[300px] overflow-y-auto space-y-2 pr-2">
+            {filteredSidebar.length === 0 ? (
+              <div className="text-center py-4 text-sm text-text-muted">No search results.</div>
+            ) : filteredSidebar.map(item => (
+              <div key={item.id} onClick={() => addManualFood(item, tab === 'recipes')}
+                className="p-3 rounded-xl border border-border bg-surface cursor-pointer hover:border-accent transition-colors flex justify-between items-center">
+                <span className="text-sm font-bold text-text">{item.name}</span>
+                <span className="text-xs font-bold text-accent">
+                  {tab === 'recipes' ? `${item.total_calories || 0} kcal` : `${item.calories_per_100g} kcal/100g`}
+                </span>
               </div>
             ))}
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

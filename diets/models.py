@@ -84,3 +84,28 @@ class ScheduledMeal(models.Model):
     def __str__(self):
         item = self.recipe.name if self.recipe else f"{self.product.name} ({self.weight_in_grams}g)"
         return f"{item} - {self.get_meal_type_display()} (Day {self.daily_menu.day_of_week})"
+    
+class MealLog(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='meal_logs'
+    )
+    date = models.DateField(help_text="Date")
+    meal_type = models.CharField(max_length=20, choices=ScheduledMeal.MEAL_CHOICES)
+    
+    recipe = models.ForeignKey(Recipe, on_delete=models.SET_NULL, null=True, blank=True)
+    product = models.ForeignKey('products.Product', on_delete=models.SET_NULL, null=True, blank=True)
+    weight_in_grams = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['date', 'meal_type']
+
+    def clean(self):
+        if self.recipe and self.product:
+            raise ValidationError("Choose recipe or product.")
+        if not self.recipe and not self.product:
+            raise ValidationError("Recipe or pruduct is necessary.")
+        if self.product and not self.weight_in_grams:
+            raise ValidationError("Weight is necessary.")
+            
+    def __str__(self):
+        return f"{self.user.username} - {self.date} - {self.meal_type}"

@@ -1,12 +1,13 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
-from .views import RecipeViewSet, DietPlanViewSet, DailyMenuViewSet, ScheduledMealViewSet, DietPlanBuilderView
+from .views import RecipeViewSet, DietPlanViewSet, DailyMenuViewSet, ScheduledMealViewSet, DietPlanBuilderView, MealLogViewSet
 
 router = DefaultRouter()
 router.register('recipes', RecipeViewSet, basename='recipe')
 router.register('diet-plans', DietPlanViewSet, basename='diet-plan')
 router.register('daily-menus', DailyMenuViewSet, basename='daily-menu')
 router.register('scheduled-meals', ScheduledMealViewSet, basename='scheduled-meal')
+router.register('meal-logs', MealLogViewSet, basename='meal-log')
 
 urlpatterns = [
     path('diet-plans/bulk-create/', DietPlanBuilderView.as_view(), name='bulk-create-plan'),

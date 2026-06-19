@@ -80,6 +80,15 @@ class DietCalculatorService:
                 total_macros[key] += recipe_macros[key]
 
         return total_macros
+    
+    @staticmethod
+    def calculate_daily_caloric_needs(weight_kg, height_cm, age=30, gender='M') -> int:
+        if not weight_kg or not height_cm:
+            return 2000 
+        
+        s = 5 if gender != 'F' else -161
+        bmr = (10 * float(weight_kg)) + (6.25 * float(height_cm)) - (5 * age) + s
+        return round(bmr * 1.2)
 
 class DietAnalyticsService:
 

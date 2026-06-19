@@ -5,7 +5,7 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from .permissions import CanManageDietPlan
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Recipe, DietPlan, DailyMenu, ScheduledMeal
+from .models import Recipe, DietPlan, DailyMenu, ScheduledMeal, MealLog
 from .serializers import (
     RecipeListSerializer,
     RecipeDetailSerializer,
@@ -14,6 +14,7 @@ from .serializers import (
     DailyMenuListSerializer,
     DailyMenuDetailSerializer,
     ScheduledMealSerializer,
+    MealLogSerializer
 )
 
 
@@ -193,3 +194,12 @@ class DietPlanBuilderView(APIView):
             import logging
             logging.exception("Błąd przy edycji planu diety")
             return Response({"detail": f"Wewnętrzny błąd: {str(e)}"}, status=500)
+        
+class MealLogViewSet(viewsets.ModelViewSet):
+    serializer_class = MealLogSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['date']
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return MealLog.objects.filter(user=self.request.user)

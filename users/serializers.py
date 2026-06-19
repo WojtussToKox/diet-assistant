@@ -3,6 +3,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import User
 from django.contrib.auth import get_user_model
 from .models import User, DietitianRequest
+from diets.services import DietCalculatorService
 
 User = get_user_model()
 
@@ -11,6 +12,19 @@ class UserMeSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'role',
                   'is_staff', 'dietitian', 'height_cm', 'weight_kg']
+    def get_daily_caloric_needs(self, obj):
+        age = 30
+        if hasattr(obj, 'date_of_birth') and obj.date_of_birth:
+            from datetime import date
+            today = date.today()
+            age = today.year - obj.date_of_birth.year - ((today.month, today.day) < (obj.date_of_birth.month, obj.date_of_birth.day))
+
+        return DietCalculatorService.calculate_daily_caloric_needs(
+            weight_kg=obj.weight_kg,
+            height_cm=obj.height_cm,
+            age=age,
+            gender=getattr(obj, 'gender', 'M')
+        )
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     
