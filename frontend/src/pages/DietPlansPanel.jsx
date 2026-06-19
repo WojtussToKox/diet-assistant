@@ -3,275 +3,511 @@ import { useList } from "../hooks/useList";
 import { apiFetch } from "../services/api";
 import { Button as Btn } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
-import { Select } from "../components/ui/Select";
-import { Modal } from "../components/ui/Modal";
-import { Card } from "../components/ui/Card";
 import { Spinner } from "../components/ui/Spinner";
-import { Badge } from "../components/ui/Badge";
 import { EmptyState } from "../components/ui/EmptyState";
+import { FiEdit2, FiTrash2, FiPlus, FiEye, FiArrowLeft } from "react-icons/fi";
 
-export default function DietPlansPanel({ toast }) {
-  const { data: plans, loading, reload } = useList("/diet-plans/");
-  const [modal, setModal] = useState(null);
-  const [detail, setDetail] = useState(null);
-  const [form, setForm] = useState({ name: "", patient: "", start_date: "", end_date: "", daily_calories_goal: "" });
+const DAYS = [
+  { id: 1, name: "Monday" }, { id: 2, name: "Tuesday" }, { id: 3, name: "Wednesday" },
+  { id: 4, name: "Thursday" }, { id: 5, name: "Friday" }, { id: 6, name: "Saturday" }, { id: 7, name: "Sunday" }
+];
+
+const MEALS = [
+  { id: "BREAKFAST", name: "BREAKFAST", icon: "🍳" },
+  { id: "LUNCH", name: "LUNCH", icon: "🥪" },
+  { id: "DINNER", name: "DINNER", icon: "🍲" },
+  { id: "SNACK", name: "SNACK", icon: "🍎" },
+  { id: "SUPPER", name: "SUPPER", icon: "🌙" },
+];
+
+export default function DietPlansPanel({ toast, user }) {
+  const { data: plans, loading: loadingPlans, reload: reloadPlans } = useList("/diet-plans/");
+  const { data: recipes } = useList("/recipes/");
+  const { data: products } = useList("/products/");
+
+  // view: "list" | "builder" (edycja/dietetyk) | "view-readonly" (podgląd dla pacjenta)
+  const [view, setView] = useState("list");
+  const [form, setForm] = useState({ name: "", daily_calories_goal: "2000" });
+  const [boardMeals, setBoardMeals] = useState([]);
+  const [sidebarTab, setSidebarTab] = useState("recipes");
+  const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [editingPlanId, setEditingPlanId] = useState(null); // null = tworzenie nowego, number = edycja istniejącego
+  const [loadingPlanDetail, setLoadingPlanDetail] = useState(false);
+  const [viewingPlan, setViewingPlan] = useState(null); // dane planu w trybie podglądu
+  const role = user?.role;
+  const isDietitian = role === "DIETITIAN";
 
-  const openAdd = () => { setForm({ name: "", patient: "", start_date: "", end_date: "", daily_calories_goal: "" }); setModal("add"); };
-
-  const openDetail = async (plan) => {
-    try { const d = await apiFetch(`/diet-plans/${plan.id}/`); setDetail(d); }
-    catch { toast("Błąd ładowania", "error"); }
+  const openBuilder = () => {
+    setEditingPlanId(null);
+    setForm({ name: "New plan", daily_calories_goal: "2000" });
+    setBoardMeals([]);
+    setView("builder");
   };
 
-  const save = async () => {
+  // Wspólna funkcja do ładowania szczegółów planu (używana zarówno przy edycji jak i podglądzie)
+  const loadPlanMeals = (detail) => {
+    const loadedMeals = [];
+    (detail.daily_menus || []).forEach(menu => {
+      (menu.meals || []).forEach(meal => {
+        const isRecipe = !!meal.recipe;
+        const itemId = isRecipe ? meal.recipe : meal.product;
+        const sourceList = isRecipe ? recipes : products;
+        const sourceItem = sourceList.find(i => i.id === itemId);
+
+        loadedMeals.push({
+          uuid: crypto.randomUUID(),
+          dayId: menu.day_of_week,
+          mealId: meal.meal_type,
+          isRecipe,
+          itemId,
+          name: sourceItem ? sourceItem.name : (isRecipe ? "Recipe" : "Product"),
+          weight: meal.weight_in_grams,
+        });
+      });
+    });
+    return loadedMeals;
+  };
+
+  const openEdit = async (plan) => {
+    setLoadingPlanDetail(true);
+    try {
+      const detail = await apiFetch(`/diet-plans/${plan.id}/`);
+
+      setEditingPlanId(plan.id);
+      setForm({
+        name: detail.name,
+        daily_calories_goal: String(detail.daily_calories_goal),
+      });
+
+      setBoardMeals(loadPlanMeals(detail));
+      setView("builder");
+    } catch (e) {
+      toast("Błąd ładowania planu: " + e.message, "error");
+    } finally {
+      setLoadingPlanDetail(false);
+    }
+  };
+
+  // Otwiera plan w trybie tylko do odczytu — bez drag&drop, bez edycji
+  const openView = async (plan) => {
+    setLoadingPlanDetail(true);
+    try {
+      const detail = await apiFetch(`/diet-plans/${plan.id}/`);
+
+      setViewingPlan({
+        name: detail.name,
+        daily_calories_goal: detail.daily_calories_goal,
+        dietitian_name: detail.dietitian_name,
+      });
+      setBoardMeals(loadPlanMeals(detail));
+      setView("view-readonly");
+    } catch (e) {
+      toast("Błąd ładowania planu: " + e.message, "error");
+    } finally {
+      setLoadingPlanDetail(false);
+    }
+  };
+
+  const removePlan = async (planId) => {
+    if (!window.confirm("Usunąć ten szablon planu diety? Tej operacji nie można odwrócić.")) return;
+
+    setDeletingId(planId);
+    try {
+      await apiFetch(`/diet-plans/${planId}/`, { method: "DELETE" });
+      toast("Szablon usunięty", "success");
+      reloadPlans();
+    } catch (e) {
+      toast("Błąd usuwania: " + e.message, "error");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDragStartSidebar = (e, item, isRecipe) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      source: 'sidebar', isRecipe, itemId: item.id, name: item.name
+    }));
+  };
+
+  const handleDragStartBoard = (e, uuid) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({ source: 'board', uuid }));
+  };
+
+  const handleDrop = (e, dayId, mealId) => {
+    e.preventDefault();
+    const data = e.dataTransfer.getData('application/json');
+    if (!data) return;
+
+    const parsed = JSON.parse(data);
+
+    if (parsed.source === 'sidebar') {
+      let weight = null;
+      if (!parsed.isRecipe) {
+        weight = prompt(`Podaj wagę dla: ${parsed.name} (w gramach):`, "100");
+        if (!weight || isNaN(weight)) return;
+      }
+
+      setBoardMeals(prev => [...prev, {
+        uuid: crypto.randomUUID(),
+        dayId, mealId, isRecipe: parsed.isRecipe, itemId: parsed.itemId,
+        name: parsed.name, weight: weight ? parseInt(weight) : null
+      }]);
+    } else if (parsed.source === 'board') {
+      setBoardMeals(prev => prev.map(m => m.uuid === parsed.uuid ? { ...m, dayId, mealId } : m));
+    }
+  };
+
+  const removeMeal = (uuid) => setBoardMeals(prev => prev.filter(m => m.uuid !== uuid));
+
+  // Funkcja licząca kalorie dla konkretnego dnia
+  const getDayCalories = (dayId) => {
+    const dayMeals = boardMeals.filter(m => m.dayId === dayId);
+    let total = 0;
+
+    dayMeals.forEach(m => {
+      if (m.isRecipe) {
+        const recipe = recipes.find(r => r.id === m.itemId);
+        if (recipe && recipe.total_calories) total += recipe.total_calories;
+      } else {
+        const product = products.find(p => p.id === m.itemId);
+        if (product && product.calories_per_100g) {
+          total += (product.calories_per_100g / 100) * m.weight;
+        }
+      }
+    });
+    return Math.round(total);
+  };
+
+  const savePlan = async () => {
+    if (!form.name || !form.daily_calories_goal) {
+      toast("Wypełnij nazwę i cel kalorii", "error");
+      return;
+    }
+
+    const daysPayload = [];
+    DAYS.forEach(day => {
+      const dayMeals = boardMeals.filter(m => m.dayId === day.id);
+      if (dayMeals.length > 0) {
+        daysPayload.push({
+          day_of_week: day.id,
+          meals: dayMeals.map(m => ({
+            meal_type: m.mealId,
+            recipe: m.isRecipe ? m.itemId : null,
+            product: !m.isRecipe ? m.itemId : null,
+            weight_in_grams: !m.isRecipe ? m.weight : null
+          }))
+        });
+      }
+    });
+
+    const payload = {
+      name: form.name,
+      daily_calories_goal: Number(form.daily_calories_goal),
+      days: daysPayload
+    };
+
     setSaving(true);
     try {
-      const payload = { ...form, patient: Number(form.patient), daily_calories_goal: Number(form.daily_calories_goal) };
-      if (modal === "add") {
-        await apiFetch("/diet-plans/", { method: "POST", body: JSON.stringify(payload) });
-        toast("Plan diety utworzony", "success");
+      if (editingPlanId) {
+        await apiFetch(`/diet-plans/${editingPlanId}/bulk-update/`, {
+          method: "PUT",
+          body: JSON.stringify(payload)
+        });
+        toast("Szablon planu został zaktualizowany!", "success");
       } else {
-        await apiFetch(`/diet-plans/${modal.id}/`, { method: "PUT", body: JSON.stringify(payload) });
-        toast("Plan zaktualizowany", "success");
+        await apiFetch("/diet-plans/bulk-create/", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        toast("Szablon planu został zapisany!", "success");
       }
-      setModal(null); reload();
-    } catch (e) { toast("Błąd: " + e.message, "error"); }
-    finally { setSaving(false); }
+
+      reloadPlans();
+      setView("list");
+      setEditingPlanId(null);
+    } catch (e) {
+      toast("Błąd: " + e.message, "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const remove = async (id) => {
-    if (!window.confirm("Usunąć plan diety?")) return;
-    try { await apiFetch(`/diet-plans/${id}/`, { method: "DELETE" }); toast("Plan usunięty", "success"); reload(); }
-    catch { toast("Błąd usuwania", "error"); }
-  };
+  // ---------- WIDOK LISTY ----------
+  if (view === "list") {
+    return (
+      <div className="pb-16 animate-fadeUp">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h2 className="m-0 text-2xl font-bold" style={{ color: 'var(--color-text)' }}>Diet plans</h2>
+          </div>
+          {isDietitian && (
+            <Btn onClick={openBuilder}>
+              <span className="flex items-center gap-1.5"><FiPlus /> Create new plan</span>
+            </Btn>
+          )}
+        </div>
 
-  const daysBetween = (start, end) => {
-    if (!start || !end) return 0;
-    return Math.ceil((new Date(end) - new Date(start)) / 86400000) + 1;
-  };
-  const isActive = (plan) => {
-    const today = new Date().toISOString().slice(0, 10);
-    return plan.start_date <= today && today <= plan.end_date;
-  };
+        {loadingPlans || loadingPlanDetail ? <Spinner /> : plans.length === 0 ? (
+          <EmptyState icon="📅" title="No plans yet" sub="Create your first one now." />
+        ) : (
+          <div className="grid gap-3">
+            {plans.map(p => (
+              <div
+                key={p.id}
+                onClick={() => openView(p)}
+                className="flex justify-between items-center p-5 rounded-2xl cursor-pointer transition-colors"
+                style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--color-accent)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--color-border)'}
+              >
+                <div>
+                  <div className="font-bold text-base" style={{ color: 'var(--color-text)' }}>{p.name}</div>
+                  <div className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    Calorie goal: <span style={{ color: 'var(--color-accent)', fontWeight: 'bold' }}>{p.daily_calories_goal} kcal</span>
+                  </div>
+                  {p.dietitian_name && (
+                    <div className="text-xs mt-1.5" style={{ color: 'var(--color-text-subtle)' }}>
+                      created by: {p.dietitian_name}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => openView(p)}
+                    title="Zobacz plan"
+                    className="w-9 h-9 rounded-xl flex items-center justify-center border-0 cursor-pointer transition-colors"
+                    style={{ background: 'var(--color-background)', color: 'var(--color-text-muted)' }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
+                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                  >
+                    <FiEye size={16} />
+                  </button>
+
+                  {isDietitian && (
+                    <>
+                      <button
+                        onClick={() => openEdit(p)}
+                        title="Edytuj szablon"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center border-0 cursor-pointer transition-colors"
+                        style={{ background: 'var(--color-accent-xlight)', color: 'var(--color-accent)' }}
+                        onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
+                        onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                      >
+                        <FiEdit2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => removePlan(p.id)}
+                        disabled={deletingId === p.id}
+                        title="Usuń szablon"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center border-0 cursor-pointer transition-colors disabled:opacity-40"
+                        style={{ background: '#FEF2F2', color: '#EF4444' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#FEE2E2'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#FEF2F2'}
+                      >
+                        <FiTrash2 size={16} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ---------- WIDOK TYLKO-DO-ODCZYTU (dla pacjenta/standard) ----------
+  if (view === "view-readonly") {
+    return (
+      <div className="flex flex-col h-[85vh] animate-fadeUp">
+        <div className="flex justify-between items-center mb-6 bg-surface p-5 rounded-2xl border border-border shrink-0">
+          <div>
+            <button
+              onClick={() => { setView("list"); setViewingPlan(null); }}
+              className="flex items-center gap-1.5 text-sm font-semibold border-0 bg-transparent cursor-pointer mb-2"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              <FiArrowLeft /> Back to list
+            </button>
+            <h2 className="m-0 text-xl font-bold" style={{ color: 'var(--color-text)' }}>
+              {viewingPlan?.name}
+            </h2>
+            <div className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
+              Calorie goal: <span style={{ color: 'var(--color-accent)', fontWeight: 'bold' }}>{viewingPlan?.daily_calories_goal} kcal</span>
+              {viewingPlan?.dietitian_name && <span> · created by {viewingPlan.dietitian_name}</span>}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-x-auto overflow-y-auto pb-4">
+          <div className="flex gap-4 w-max">
+            {DAYS.map(day => {
+              const dayKcal = getDayCalories(day.id);
+              const targetKcal = viewingPlan?.daily_calories_goal || 0;
+              const isOver = dayKcal > targetKcal;
+
+              return (
+                <div key={day.id} className="w-[280px] shrink-0 flex flex-col gap-3">
+                  <div className="text-center py-2 bg-surface border border-border rounded-xl shadow-sm">
+                    <div className="font-bold text-accent">{day.name}</div>
+                    <div className="text-xs font-bold mt-0.5" style={{ color: isOver ? '#EF4444' : 'var(--color-text-muted)' }}>
+                      {dayKcal} / {targetKcal} kcal
+                    </div>
+                  </div>
+
+                  {MEALS.map(meal => {
+                    const slotMeals = boardMeals.filter(m => m.dayId === day.id && m.mealId === meal.id);
+                    return (
+                      <div key={meal.id} className="bg-surface border border-border rounded-xl p-3 shadow-sm">
+                        <div className="text-xs font-bold text-text-muted uppercase mb-2 flex items-center gap-1.5">
+                          <span>{meal.icon}</span> {meal.name}
+                        </div>
+
+                        <div
+                          className={`min-h-[60px] rounded-lg p-1.5 ${slotMeals.length === 0 ? 'border-2 border-dashed border-border bg-background flex items-center justify-center text-xs text-text-subtle' : 'bg-accent-xlight/30 border border-transparent'}`}
+                        >
+                          {slotMeals.length === 0 ? "No meal" : slotMeals.map(m => (
+                            <div
+                              key={m.uuid}
+                              className="bg-surface border border-border p-2.5 mb-1.5 rounded-lg shadow-sm flex items-center justify-between"
+                            >
+                              <div className="min-w-0 pr-2">
+                                <div className="text-sm font-semibold text-text truncate">{m.name}</div>
+                                {!m.isRecipe && <div className="text-[10px] text-accent font-bold mt-0.5">{m.weight}g</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- WIDOK BUILDERA (tylko dietetyk: tworzenie/edycja) ----------
+  const filteredSidebar = (sidebarTab === 'recipes' ? recipes : products)
+    .filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="pb-16 animate-fadeUp">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="m-0 text-2xl font-bold" style={{ color: 'var(--color-text)' }}>Plany diety</h2>
-          <p className="m-0 mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>{plans.length} planów</p>
+    <div className="flex flex-col h-[85vh] animate-fadeUp">
+      <div className="flex gap-4 items-end mb-6 bg-surface p-5 rounded-2xl border border-border shrink-0">
+        <div className="flex-1">
+          <Input
+            label="Name"
+            value={form.name}
+            onChange={v => setForm(f => ({ ...f, name: v }))}
+          />
         </div>
-        <Btn onClick={openAdd}>＋ Nowy plan</Btn>
+        <div className="w-32">
+          <Input
+            label="Goal (kcal)"
+            type="number"
+            value={form.daily_calories_goal}
+            onChange={v => setForm(f => ({ ...f, daily_calories_goal: v }))}
+          />
+        </div>
+        <div className="flex gap-2 mb-1">
+          <Btn variant="secondary" onClick={() => { setView("list"); setEditingPlanId(null); }}>Cancel</Btn>
+          <Btn onClick={savePlan} disabled={saving}>
+            {saving ? "Saving..." : editingPlanId ? "Save changes ✓" : "Save ✓"}
+          </Btn>
+        </div>
       </div>
 
-      {loading ? <Spinner /> : plans.length === 0 ? (
-        <EmptyState icon="📋" title="Brak planów diety" sub="Utwórz plan i przypisz go do pacjenta." action={<Btn onClick={openAdd}>Utwórz plan</Btn>} />
-      ) : (
-        <div className="grid gap-3">
-          {plans.map(plan => (
-            <Card key={plan.id} hover onClick={() => openDetail(plan)}>
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2.5 mb-2">
-                    <span className="font-semibold text-base" style={{ color: 'var(--color-text)' }}>{plan.name}</span>
-                    {isActive(plan)
-                      ? <Badge variant="accent">Aktywny</Badge>
-                      : <Badge variant="muted">Nieaktywny</Badge>
-                    }
-                  </div>
-                  <div className="flex flex-wrap gap-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                    <span>👤 Pacjent #{plan.patient}</span>
-                    <span>📅 {plan.start_date} → {plan.end_date}</span>
-                    <span>⏱️ {daysBetween(plan.start_date, plan.end_date)} dni</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 ml-4">
-                  <div className="text-right">
-                    <div className="font-mono font-black text-xl leading-none" style={{ color: 'var(--color-accent)' }}>{plan.daily_calories_goal}</div>
-                    <div className="text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>kcal/dzień</div>
-                  </div>
-                  <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                    <Btn variant="ghost" size="sm" onClick={() => { setForm({ name: plan.name, patient: String(plan.patient), start_date: plan.start_date, end_date: plan.end_date, daily_calories_goal: String(plan.daily_calories_goal) }); setModal(plan); }}>✏️</Btn>
-                    <Btn variant="ghost" size="sm" onClick={() => remove(plan.id)}>🗑️</Btn>
+      <div className="flex gap-6 flex-1 min-h-0">
+        <div className="w-72 flex flex-col bg-surface border border-border rounded-2xl overflow-hidden shrink-0">
+          <div className="flex p-2 bg-background border-b border-border">
+            <button onClick={() => setSidebarTab('recipes')} className={`flex-1 py-2 text-sm font-semibold rounded-lg border-0 cursor-pointer ${sidebarTab === 'recipes' ? 'bg-surface shadow-sm text-accent' : 'bg-transparent text-text-muted'}`}>Recipes</button>
+            <button onClick={() => setSidebarTab('products')} className={`flex-1 py-2 text-sm font-semibold rounded-lg border-0 cursor-pointer ${sidebarTab === 'products' ? 'bg-surface shadow-sm text-accent' : 'bg-transparent text-text-muted'}`}>Products</button>
+          </div>
+          <div className="p-3 border-b border-border">
+            <Input placeholder="Szukaj..." value={search} onChange={v => setSearch(v)} />
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {filteredSidebar.map(item => (
+              <div
+                key={item.id} draggable
+                onDragStart={(e) => handleDragStartSidebar(e, item, sidebarTab === 'recipes')}
+                className="p-3 rounded-xl cursor-grab active:cursor-grabbing border border-border hover:border-accent transition-colors"
+                style={{ background: 'var(--color-background)' }}
+              >
+                <div className="font-semibold text-sm text-text">{item.name}</div>
+                <div className="flex justify-between items-center mt-1">
+                  <div className="text-[10px] text-text-muted uppercase tracking-wider">Grab & drop →</div>
+                  <div className="text-[10px] font-bold text-accent">
+                    {sidebarTab === 'recipes' ? `${item.total_calories || 0} kcal` : `${item.calories_per_100g} kcal/100g`}
                   </div>
                 </div>
               </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {detail && <DietPlanDetail plan={detail} onClose={() => setDetail(null)} toast={toast} />}
-
-      {modal && (
-        <Modal title={modal === "add" ? "Nowy plan diety" : "Edytuj plan"} onClose={() => setModal(null)}>
-          <div className="grid gap-4">
-            <Input label="Nazwa planu" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required placeholder="np. Plan odchudzający" />
-            <Input label="ID Pacjenta" type="number" value={form.patient} onChange={v => setForm(f => ({ ...f, patient: v }))} required placeholder="np. 2" />
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Data rozpoczęcia" type="date" value={form.start_date} onChange={v => setForm(f => ({ ...f, start_date: v }))} required />
-              <Input label="Data zakończenia" type="date" value={form.end_date} onChange={v => setForm(f => ({ ...f, end_date: v }))} required />
-            </div>
-            <Input label="Cel kaloryczny (kcal/dzień)" type="number" value={form.daily_calories_goal} onChange={v => setForm(f => ({ ...f, daily_calories_goal: v }))} required placeholder="np. 2000" min="0" />
-            <div className="flex gap-2.5 justify-end mt-1">
-              <Btn variant="secondary" onClick={() => setModal(null)}>Anuluj</Btn>
-              <Btn onClick={save} disabled={saving}>{saving ? "Tworzenie…" : "Zapisz plan"}</Btn>
-            </div>
+            ))}
           </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-function DietPlanDetail({ plan, onClose, toast }) {
-  const { data: menus, loading, reload } = useList(`/daily-menus/?diet_plan=${plan.id}`, [plan.id]);
-  const { data: recipes } = useList("/recipes/");
-  const [addMenuModal, setAddMenuModal] = useState(false);
-  const [mealModal, setMealModal] = useState(null);
-  const [dayNum, setDayNum] = useState("");
-  const [mealForm, setMealForm] = useState({ meal_type: "", recipe: "" });
-  const [saving, setSaving] = useState(false);
-
-  const MEAL_TYPES = [
-    { value: "BREAKFAST", label: "Śniadanie" }, { value: "LUNCH", label: "II Śniadanie" },
-    { value: "DINNER", label: "Obiad" }, { value: "SNACK", label: "Podwieczorek" }, { value: "SUPPER", label: "Kolacja" },
-  ];
-
-  const addMenu = async () => {
-    if (!dayNum) return; setSaving(true);
-    try {
-      await apiFetch("/daily-menus/", { method: "POST", body: JSON.stringify({ diet_plan: plan.id, day_number: Number(dayNum) }) });
-      toast("Dzień dodany", "success"); setAddMenuModal(false); setDayNum(""); reload();
-    } catch (e) { toast("Błąd: " + e.message, "error"); } finally { setSaving(false); }
-  };
-
-  const removeMenu = async (id) => {
-    if (!window.confirm("Usunąć dzień?")) return;
-    try { await apiFetch(`/daily-menus/${id}/`, { method: "DELETE" }); toast("Dzień usunięty", "success"); reload(); }
-    catch { toast("Błąd", "error"); }
-  };
-
-  const addMeal = async () => {
-    setSaving(true);
-    try {
-      await apiFetch("/scheduled-meals/", { method: "POST", body: JSON.stringify({ daily_menu: mealModal.id, meal_type: mealForm.meal_type, recipe: Number(mealForm.recipe) }) });
-      toast("Posiłek dodany", "success"); setMealModal(null); setMealForm({ meal_type: "", recipe: "" }); reload();
-    } catch (e) { toast("Błąd: " + e.message, "error"); } finally { setSaving(false); }
-  };
-
-  const removeMeal = async (id) => {
-    try { await apiFetch(`/scheduled-meals/${id}/`, { method: "DELETE" }); toast("Posiłek usunięty", "success"); reload(); }
-    catch { toast("Błąd", "error"); }
-  };
-
-  const sorted = [...menus].sort((a, b) => a.day_number - b.day_number);
-
-  return (
-    <Modal title={`📋 ${plan.name}`} onClose={onClose} width="max-w-[680px]">
-      {/* Plan summary */}
-      <div className="flex gap-3 mb-6 flex-wrap">
-        {[
-          { label: "PACJENT", value: `#${plan.patient}` },
-          { label: "OKRES", value: `${plan.start_date} — ${plan.end_date}`, small: true },
-          { label: "CEL KALORII", value: `${plan.daily_calories_goal} kcal`, accent: true },
-        ].map(({ label, value, small, accent }) => (
-          <div key={label} className="py-3 px-4 rounded-xl flex-1 min-w-[120px]"
-            style={{ background: accent ? 'var(--color-accent-xlight)' : 'var(--color-background)' }}>
-            <div className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: accent ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>{label}</div>
-            <div className={`font-bold ${small ? 'text-sm' : 'text-base'}`} style={{ color: accent ? 'var(--color-accent)' : 'var(--color-text)' }}>{value}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex justify-between items-center mb-3">
-        <h4 className="m-0 text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Dni planu ({sorted.length})</h4>
-        <Btn variant="secondary" size="sm" onClick={() => setAddMenuModal(true)}>＋ Dodaj dzień</Btn>
-      </div>
-
-      {loading ? <Spinner /> : sorted.length === 0 ? (
-        <div className="p-5 text-center text-sm rounded-xl" style={{ background: 'var(--color-background)', color: 'var(--color-text-muted)' }}>
-          Brak dni. Dodaj pierwszy dzień planu.
         </div>
-      ) : (
-        <div className="grid gap-2.5">
-          {sorted.map(menu => (
-            <DayMenuCard key={menu.id} menu={menu} recipes={recipes} onAddMeal={() => setMealModal(menu)} onRemoveMeal={removeMeal} onRemoveMenu={() => removeMenu(menu.id)} toast={toast} />
-          ))}
-        </div>
-      )}
 
-      {addMenuModal && (
-        <Modal title="Dodaj dzień" onClose={() => setAddMenuModal(false)} width="max-w-[360px]">
-          <Input label="Numer dnia" type="number" value={dayNum} onChange={setDayNum} min="1" required placeholder="np. 1" />
-          <div className="flex gap-2.5 justify-end mt-4">
-            <Btn variant="secondary" onClick={() => setAddMenuModal(false)}>Anuluj</Btn>
-            <Btn onClick={addMenu} disabled={saving || !dayNum}>Dodaj</Btn>
-          </div>
-        </Modal>
-      )}
+        <div className="flex-1 overflow-x-auto overflow-y-auto pb-4 pr-4">
+          <div className="flex gap-4 w-max">
+            {DAYS.map(day => {
+              const dayKcal = getDayCalories(day.id);
+              const targetKcal = parseInt(form.daily_calories_goal) || 0;
+              const isOver = dayKcal > targetKcal;
 
-      {mealModal && (
-        <Modal title={`Dodaj posiłek — Dzień ${mealModal.day_number}`} onClose={() => setMealModal(null)} width="max-w-[400px]">
-          <div className="grid gap-4">
-            <Select label="Typ posiłku" value={mealForm.meal_type} onChange={v => setMealForm(f => ({ ...f, meal_type: v }))} options={MEAL_TYPES} placeholder="Wybierz typ…" required />
-            <Select label="Przepis" value={mealForm.recipe} onChange={v => setMealForm(f => ({ ...f, recipe: v }))} options={recipes.map(r => ({ value: String(r.id), label: r.name }))} placeholder="Wybierz przepis…" required />
-            <div className="flex gap-2.5 justify-end mt-1">
-              <Btn variant="secondary" onClick={() => setMealModal(null)}>Anuluj</Btn>
-              <Btn onClick={addMeal} disabled={saving || !mealForm.meal_type || !mealForm.recipe}>Dodaj posiłek</Btn>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </Modal>
-  );
-}
+              return (
+                <div key={day.id} className="w-[280px] shrink-0 flex flex-col gap-3">
+                  <div className="text-center py-2 bg-surface border border-border rounded-xl shadow-sm">
+                    <div className="font-bold text-accent">{day.name}</div>
+                    <div className="text-xs font-bold mt-0.5" style={{ color: isOver ? '#EF4444' : 'var(--color-text-muted)' }}>
+                      {dayKcal} / {targetKcal} kcal
+                    </div>
+                  </div>
 
-function DayMenuCard({ menu, recipes, onAddMeal, onRemoveMeal, onRemoveMenu }) {
-  const [expanded, setExpanded] = useState(true);
-  const { data: meals, reload } = useList(`/scheduled-meals/?daily_menu=${menu.id}`, [menu.id]);
+                  {MEALS.map(meal => {
+                    const slotMeals = boardMeals.filter(m => m.dayId === day.id && m.mealId === meal.id);
+                    return (
+                      <div key={meal.id} className="bg-surface border border-border rounded-xl p-3 shadow-sm">
+                        <div className="text-xs font-bold text-text-muted uppercase mb-2 flex items-center gap-1.5">
+                          <span>{meal.icon}</span> {meal.name}
+                        </div>
 
-  const MEAL_LABELS = { BREAKFAST: "Śniadanie", LUNCH: "II Śniadanie", DINNER: "Obiad", SNACK: "Podwieczorek", SUPPER: "Kolacja" };
-  const MEAL_ICONS = { BREAKFAST: "🌅", LUNCH: "🍎", DINNER: "🍽️", SNACK: "🥐", SUPPER: "🌙" };
-
-  return (
-    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--color-border)' }}>
-      <div className="flex items-center justify-between px-4 py-3 cursor-pointer" style={{ background: 'var(--color-background)' }} onClick={() => setExpanded(e => !e)}>
-        <div className="flex items-center gap-2.5">
-          <span className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>Dzień {menu.day_number}</span>
-          <span className="text-xs px-2 py-0.5 rounded-md font-medium" style={{ background: 'var(--color-accent-xlight)', color: 'var(--color-accent)' }}>{meals.length} posiłków</span>
-        </div>
-        <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
-          <Btn variant="ghost" size="sm" onClick={onAddMeal}>＋</Btn>
-          <Btn variant="ghost" size="sm" onClick={onRemoveMenu}>🗑️</Btn>
-          <span className="text-xs px-1.5 py-1 cursor-pointer" style={{ color: 'var(--color-text-muted)' }} onClick={() => setExpanded(e => !e)}>{expanded ? "▲" : "▼"}</span>
-        </div>
-      </div>
-      {expanded && (
-        <div className="px-4 pt-2 pb-3" style={{ background: 'var(--color-surface)' }}>
-          {meals.length === 0 ? (
-            <div className="py-3 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>Brak posiłków — dodaj pierwszy.</div>
-          ) : (
-            <div className="grid gap-1.5 mt-1">
-              {meals.map(meal => (
-                <div key={meal.id} className="flex justify-between items-center py-2 px-3 rounded-xl text-sm" style={{ background: 'var(--color-background)', border: '1px solid var(--color-border)' }}>
-                  <span>
-                    {MEAL_ICONS[meal.meal_type] || "🍴"}{" "}
-                    <strong style={{ color: 'var(--color-text)' }}>{MEAL_LABELS[meal.meal_type] || meal.meal_type}</strong>
-                    {" · "}
-                    <span style={{ color: 'var(--color-text-muted)' }}>{recipes.find(r => r.id === meal.recipe)?.name ?? `Przepis #${meal.recipe}`}</span>
-                  </span>
-                  <button onClick={() => { onRemoveMeal(meal.id); reload(); }} className="border-0 cursor-pointer text-sm px-1.5 py-0.5 rounded-lg transition-all"
-                    style={{ background: 'transparent', color: 'var(--color-text-muted)' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--color-background)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>✕</button>
+                        <div
+                          onDragOver={e => e.preventDefault()}
+                          onDrop={e => handleDrop(e, day.id, meal.id)}
+                          className={`min-h-[60px] rounded-lg p-1.5 transition-colors ${slotMeals.length === 0 ? 'border-2 border-dashed border-border bg-background flex items-center justify-center text-xs text-text-subtle' : 'bg-accent-xlight/30 border border-transparent'}`}
+                        >
+                          {slotMeals.length === 0 ? "Upuść tutaj" : slotMeals.map(m => (
+                            <div
+                              key={m.uuid} draggable
+                              onDragStart={(e) => handleDragStartBoard(e, m.uuid)}
+                              className="bg-surface border border-border p-2.5 mb-1.5 rounded-lg shadow-sm flex items-center justify-between cursor-grab active:cursor-grabbing group"
+                            >
+                              <div className="min-w-0 pr-2">
+                                <div className="text-sm font-semibold text-text truncate">{m.name}</div>
+                                {!m.isRecipe && <div className="text-[10px] text-accent font-bold mt-0.5">{m.weight}g</div>}
+                              </div>
+                              <button
+                                onClick={() => removeMeal(m.uuid)}
+                                className="w-6 h-6 shrink-0 rounded bg-danger-light text-danger border-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs"
+                              ><FiTrash2 size={12} /></button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
-            </div>
-          )}
+              )
+            })}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

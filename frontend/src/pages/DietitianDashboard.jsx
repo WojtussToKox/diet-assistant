@@ -1,18 +1,95 @@
 import { useList } from "../hooks/useList";
 import { apiFetch } from "../services/api";
-import { useState } from "react";
 import { Spinner } from "../components/ui/Spinner";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Button as Btn } from "../components/ui/Button";
 import { AiOutlineUserDelete } from "react-icons/ai";
+import { useState, useEffect, useRef } from "react";
+
+function SearchablePlanSelect({ plans, currentPlanId, onAssign, disabled }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    const wrapperRef = useRef(null);
+
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const currentPlan = plans.find(p => p.id === currentPlanId);
+    const filtered = plans.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+
+    return (
+        <div className="relative w-full mt-3" ref={wrapperRef}>
+            <div
+                className={`p-2.5 rounded-xl text-sm cursor-pointer border transition-colors ${isOpen ? 'border-accent' : 'border-border'} flex justify-between items-center`}
+                style={{ background: 'var(--color-background)', color: currentPlan ? 'var(--color-text)' : 'var(--color-text-muted)' }}
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+            >
+                <span className="truncate">{currentPlan ? currentPlan.name : "Assign a diet plan..."}</span>
+                <span className="text-xs">▼</span>
+            </div>
+
+            {isOpen && (
+                <div className="absolute z-10 w-full mt-1 bg-surface border border-border rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] max-h-48 flex flex-col overflow-hidden">
+                    <div className="p-2 border-b border-border">
+                        <input
+                            type="text"
+                            autoFocus
+                            placeholder="Search plan by name..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="w-full p-2 text-sm outline-none rounded-lg border border-border"
+                            style={{ background: 'var(--color-background)', color: 'var(--color-text)' }}
+                        />
+                    </div>
+                    <div className="overflow-y-auto p-1">
+                        {filtered.length === 0 ? (
+                            <div className="p-3 text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>No plans found</div>
+                        ) : filtered.map(plan => (
+                            <div
+                                key={plan.id}
+                                onClick={() => {
+                                    onAssign(plan.id);
+                                    setIsOpen(false);
+                                    setSearch("");
+                                }}
+                                className="p-2 text-sm rounded-lg cursor-pointer transition-colors flex justify-between items-center"
+                                style={{ color: 'var(--color-text)' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-accent-xlight)'; e.currentTarget.style.color = 'var(--color-accent)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text)'; }}
+                            >
+                                <div className="min-w-0">
+                                    <span className="truncate block">{plan.name}</span>
+                                    {plan.dietitian_name && (
+                                        <span className="text-[10px] opacity-60 block">{plan.dietitian_name}</span>
+                                    )}
+                                </div>
+                                <span className="text-[10px] ml-2 shrink-0 opacity-70">{plan.daily_calories_goal} kcal</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
 
 function PatientCard({ patient, reload, toast }) {
-    const { data: plans } = useList(`/diet-plans/`);
+    const { data: plans, reload: reloadPlans } = useList(`/diet-plans/`);
+    const [assigning, setAssigning] = useState(false);
+
+    // Find active plan for this patient
     const patientPlans = plans.filter(p => p.patient === patient.id);
-    const today = new Date().toISOString().slice(0, 10);
-    const activePlan = patientPlans.find(
-        p => p.start_date <= today && today <= p.end_date
-    );
+    const activePlan = patientPlans.length > 0 ? patientPlans[patientPlans.length - 1] : null;
+
+    // Filter available plans to show only unassigned templates OR the currently assigned one
+    const availablePlans = plans.filter(p => p.patient === null || p.patient === patient.id);
 
     const initials = (patient.first_name || patient.username).slice(0, 1).toUpperCase();
 
@@ -26,6 +103,23 @@ function PatientCard({ patient, reload, toast }) {
             reload();
         } catch (e) {
             toast("Error: " + e.message, "error");
+        }
+    };
+
+    // PATCH request to assign the plan to the patient
+    const assignPlan = async (planId) => {
+        setAssigning(true);
+        try {
+            await apiFetch(`/diet-plans/${planId}/`, {
+                method: "PATCH",
+                body: JSON.stringify({ patient: patient.id })
+            });
+            toast("Diet plan assigned successfully!", "success");
+            reloadPlans();
+        } catch (e) {
+            toast("Error assigning plan: " + e.message, "error");
+        } finally {
+            setAssigning(false);
         }
     };
 
@@ -55,59 +149,39 @@ function PatientCard({ patient, reload, toast }) {
                     onMouseEnter={e => e.currentTarget.style.background = '#FEE2E2'}
                     onMouseLeave={e => e.currentTarget.style.background = '#FEF2F2'}
                 >
-                    <AiOutlineUserDelete />
+                    ✕
                 </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-xs mb-3">
-                {patient.height_cm && (
-                    <div className="px-3 py-2 rounded-lg" style={{ background: 'var(--color-background)' }}>
-                        <span style={{ color: 'var(--color-text-muted)' }}>Height</span>
-                        <div className="font-mono font-bold mt-0.5" style={{ color: 'var(--color-text)' }}>
-                            {patient.height_cm} cm
+            {/* Display active plan info if it exists */}
+            {activePlan && (
+                <div className="px-4 py-3 rounded-xl mb-3" style={{ background: 'var(--color-background)' }}>
+                    <div className="flex justify-between items-start mb-1">
+                        <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+                            Active plan
+                        </div>
+                        <div className="text-xs font-medium" style={{ color: 'var(--color-accent)' }}>
+                            {activePlan.daily_calories_goal} kcal / day
                         </div>
                     </div>
-                )}
-                {patient.weight_kg && (
-                    <div className="px-3 py-2 rounded-lg" style={{ background: 'var(--color-background)' }}>
-                        <span style={{ color: 'var(--color-text-muted)' }}>Weight</span>
-                        <div className="font-mono font-bold mt-0.5" style={{ color: 'var(--color-text)' }}>
-                            {patient.weight_kg} kg
-                        </div>
+                    <div className="font-medium text-sm truncate" style={{ color: 'var(--color-text)' }}>
+                        {activePlan.name}
                     </div>
-                )}
-            </div>
-
-            {/* Plany diety pacjenta */}
-            {patientPlans.length > 0 ? (
-                <div className="space-y-1.5">
-                    <div className="text-xs font-semibold uppercase tracking-wide mb-2"
-                        style={{ color: 'var(--color-text-muted)' }}>
-                        Plany diety ({patientPlans.length})
-                    </div>
-                    {patientPlans.slice(0, 2).map(plan => (
-                        <div key={plan.id} className="flex justify-between items-center px-3 py-2 rounded-lg text-xs"
-                            style={{ background: 'var(--color-background)' }}>
-                            <span className="font-medium truncate" style={{ color: 'var(--color-text)' }}>
-                                {plan.name}
-                            </span>
-                            <span className="font-mono shrink-0 ml-2" style={{ color: 'var(--color-accent)' }}>
-                                {plan.daily_calories_goal} kcal
-                            </span>
-                        </div>
-                    ))}
-                    {patientPlans.length > 2 && (
-                        <div className="text-xs text-center py-1" style={{ color: 'var(--color-text-muted)' }}>
-                            +{patientPlans.length - 2} więcej
+                    {activePlan.dietitian_name && (
+                        <div className="text-xs mt-1" style={{ color: 'var(--color-text-subtle)' }}>
+                            autor: {activePlan.dietitian_name}
                         </div>
                     )}
                 </div>
-            ) : (
-                <div className="text-xs text-center py-3 rounded-lg"
-                    style={{ background: 'var(--color-background)', color: 'var(--color-text-muted)' }}>
-                    Brak planów diety
-                </div>
             )}
+
+            {/* Searchable Dropdown for assigning a plan */}
+            <SearchablePlanSelect
+                plans={availablePlans}
+                currentPlanId={activePlan?.id}
+                onAssign={assignPlan}
+                disabled={assigning}
+            />
         </div>
     );
 }

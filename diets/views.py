@@ -1,3 +1,6 @@
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.db import transaction
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from .permissions import CanManageDietPlan
@@ -82,3 +85,111 @@ class ScheduledMealViewSet(viewsets.ModelViewSet):
         elif user.role in ['PATIENT', 'STANDARD']:
             return base_qs.filter(daily_menu__diet_plan__patient=user)
         return base_qs.none()
+
+class DietPlanBuilderView(APIView):
+    """Wspólna logika tworzenia i edycji szablonu planu diety (drag&drop builder)."""
+    permission_classes = [IsAuthenticated]
+
+    def _validate_payload(self, data):
+        """Sprawdza podstawowe pola i zwraca (name, daily_calories_goal) albo rzuca ValueError."""
+        name = data.get('name')
+        daily_calories_goal = data.get('daily_calories_goal')
+
+        if not name:
+            raise ValueError("Field 'name' is required.")
+        if not daily_calories_goal:
+            raise ValueError("Field 'daily_calories_goal' is required.")
+
+        return name, daily_calories_goal
+
+    def _save_days(self, plan, days_data):
+        """Tworzy DailyMenu + ScheduledMeal dla podanego planu. Zakłada że stare dni już usunięto (przy edycji)."""
+        for day_data in days_data:
+            day_of_week = day_data.get('day_of_week')
+            if day_of_week is None:
+                raise ValueError("Each day requires 'day_of_week'.")
+
+            menu = DailyMenu.objects.create(
+                diet_plan=plan,
+                day_of_week=day_of_week
+            )
+
+            for meal_data in day_data.get('meals', []):
+                recipe_id = meal_data.get('recipe')
+                product_id = meal_data.get('product')
+
+                if not recipe_id and not product_id:
+                    raise ValueError(
+                        f"Meal '{meal_data.get('meal_type')}' needs a recipe or a product."
+                    )
+
+                ScheduledMeal.objects.create(
+                    daily_menu=menu,
+                    meal_type=meal_data.get('meal_type'),
+                    recipe_id=recipe_id,
+                    product_id=product_id,
+                    weight_in_grams=meal_data.get('weight_in_grams')
+                )
+
+    def post(self, request):
+        """Tworzenie nowego szablonu planu diety."""
+        data = request.data
+        user = request.user
+
+        if user.role != 'DIETITIAN':
+            return Response(
+                {"detail": "Only dietitians can create diet plan templates."},
+                status=403
+            )
+
+        try:
+            name, daily_calories_goal = self._validate_payload(data)
+
+            with transaction.atomic():
+                plan = DietPlan.objects.create(
+                    name=name,
+                    daily_calories_goal=daily_calories_goal,
+                    dietitian=user
+                )
+                self._save_days(plan, data.get('days', []))
+
+            return Response({"detail": "Plan został zapisany!", "plan_id": plan.id}, status=201)
+
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+        except Exception as e:
+            import logging
+            logging.exception("Błąd przy tworzeniu planu diety")
+            return Response({"detail": f"Wewnętrzny błąd: {str(e)}"}, status=500)
+
+    def put(self, request, plan_id=None):
+        """Edycja istniejącego szablonu planu diety."""
+        data = request.data
+        user = request.user
+
+        plan = DietPlan.objects.filter(id=plan_id).first()
+        if not plan:
+            return Response({"detail": "Plan not found."}, status=404)
+
+        if plan.dietitian != user:
+            return Response({"detail": "You can only edit your own plans."}, status=403)
+
+        try:
+            name, daily_calories_goal = self._validate_payload(data)
+
+            with transaction.atomic():
+                plan.name = name
+                plan.daily_calories_goal = daily_calories_goal
+                plan.save()
+
+                plan.daily_menus.all().delete()  # usuń stare dni, zbuduj od nowa
+                self._save_days(plan, data.get('days', []))
+
+            return Response({"detail": "Plan zaktualizowany!", "plan_id": plan.id}, status=200)
+
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+        except Exception as e:
+            import logging
+            logging.exception("Błąd przy edycji planu diety")
+            return Response({"detail": f"Wewnętrzny błąd: {str(e)}"}, status=500)

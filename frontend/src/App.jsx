@@ -123,6 +123,9 @@ export default function App() {
           <nav className="flex-1 px-3 space-y-0.5">
             {mainNav.map(n => {
               const active = page === n.id;
+              if (n.id === "diet-plans" && role != "DIETITIAN" && !user?.dietitian) {
+                return null;
+              }
               return (
                 <button
                   key={n.id}
@@ -193,7 +196,7 @@ export default function App() {
                 {page === "dashboard" && <Dashboard user={user} />}
                 {page === "products" && <ProductsPanel toast={showToast} />}
                 {page === "recipes" && <RecipesPanel toast={showToast} />}
-                {page === "diet-plans" && <DietPlansPanel toast={showToast} />}
+                {page === "diet-plans" && <DietPlansPanel toast={showToast} user={user} />}
                 {page === "settings" && <SettingsPanel user={user} setUser={setUser} toast={showToast} onLogout={handleLogout} />}
                 {page === "patients" && <DietitianDashboard user={user} toast={showToast} />}
                 {page === "find-dietitian" && <FindDietitian toast={showToast} />}
