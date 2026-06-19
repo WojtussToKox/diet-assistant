@@ -17,21 +17,32 @@ const MEALS = [
 
 export default function Dashboard({ user, toast }) {
   const safeToast = typeof toast === "function" ? toast : (msg, type) => console.warn(`[toast:${type}]`, msg);
-  const todayObj = new Date();
-  const year = todayObj.getFullYear();
-  const month = String(todayObj.getMonth() + 1).padStart(2, '0');
-  const day = String(todayObj.getDate()).padStart(2, '0');
 
-  const todayStr = `${year}-${month}-${day}`;
-  const dayName = todayObj.toLocaleDateString('en-US', { weekday: 'long' });
+  const [currentDate, setCurrentDate] = useState(new Date());
 
-  const jsDay = todayObj.getDay();
-  const todayDayId = jsDay === 0 ? 7 : jsDay;
+  const year = currentDate.getFullYear();
+  const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+  const day = String(currentDate.getDate()).padStart(2, '0');
+
+  const dateStr = `${year}-${month}-${day}`;
+  const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' });
+
+  const jsDay = currentDate.getDay();
+  const currentDayId = jsDay === 0 ? 7 : jsDay;
+
+  const isToday = currentDate.toDateString() === new Date().toDateString();
+
+  const changeDate = (days) => {
+    const nextDate = new Date(currentDate);
+    nextDate.setDate(currentDate.getDate() + days);
+    setCurrentDate(nextDate);
+  };
+  const goToToday = () => setCurrentDate(new Date());
 
   const { data: plans } = useList("/diet-plans/");
   const { data: dailyMenus } = useList("/daily-menus/");
   const { data: scheduledMeals } = useList("/scheduled-meals/");
-  const { data: logs, loading, reload: reloadLogs } = useList(`/meal-logs/?date=${todayStr}`);
+  const { data: logs, loading, reload: reloadLogs } = useList(`/meal-logs/?date=${dateStr}`);
 
   const { data: recipes } = useList("/recipes/");
   const { data: products } = useList("/products/");
@@ -44,8 +55,8 @@ export default function Dashboard({ user, toast }) {
   const myPlan = patientPlans.length > 0 ? patientPlans[patientPlans.length - 1] : null;
   const hasPlan = !!myPlan;
 
-  const todayMenu = hasPlan ? dailyMenus.find(m => m.diet_plan === myPlan.id && m.day_of_week === todayDayId) : null;
-  const todayScheduled = todayMenu ? scheduledMeals.filter(m => m.daily_menu === todayMenu.id) : [];
+  const targetMenu = hasPlan ? dailyMenus.find(m => m.diet_plan === myPlan.id && m.day_of_week === currentDayId) : null;
+  const targetScheduled = targetMenu ? scheduledMeals.filter(m => m.daily_menu === targetMenu.id) : [];
 
   let consumedKcal = 0;
   let consumedProtein = 0;
@@ -97,11 +108,9 @@ export default function Dashboard({ user, toast }) {
       } else {
         await apiFetch("/meal-logs/", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            date: todayStr,
+            date: dateStr,
             meal_type: scheduled.meal_type,
             recipe: scheduled.recipe,
             product: scheduled.product,
@@ -127,11 +136,9 @@ export default function Dashboard({ user, toast }) {
     try {
       await apiFetch("/meal-logs/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date: todayStr,
+          date: dateStr,
           meal_type: targetMealId,
           recipe: isRecipe ? item.id : null,
           product: !isRecipe ? item.id : null,
@@ -140,9 +147,7 @@ export default function Dashboard({ user, toast }) {
       });
 
       safeToast("Meal added!", "success");
-
       await reloadLogs();
-
       setSearch("");
       setAddModal(null);
     } catch (e) {
@@ -171,10 +176,29 @@ export default function Dashboard({ user, toast }) {
 
   return (
     <div className="pb-16 animate-fadeUp">
-      <h1 className="text-3xl font-black mb-2" style={{ color: 'var(--color-text)' }}>Welcome, {user.first_name || user.username}! 👋</h1>
-      <p className="text-sm font-medium mb-8" style={{ color: 'var(--color-text-muted)' }}>
-        It is {dayName}, {todayStr}
-      </p>
+      <div className="flex justify-between items-end mb-6">
+        <div>
+          <h1 className="text-3xl font-black mb-1" style={{ color: 'var(--color-text)' }}>Welcome, {user.first_name || user.username}! 👋</h1>
+        </div>
+      </div>
+
+      {/* 4. NAWIGACJA DATY */}
+      <div className="flex items-center gap-3 mb-8 bg-surface p-2 rounded-xl border border-border w-max shadow-sm">
+        <button onClick={() => changeDate(-1)} className="w-10 h-10 rounded-lg flex items-center justify-center border-0 cursor-pointer transition-colors bg-background hover:bg-accent-xlight text-text-muted hover:text-accent font-bold">
+          ←
+        </button>
+        <div className="w-48 text-center font-bold text-sm" style={{ color: 'var(--color-text)' }}>
+          {isToday ? <span className="text-accent">Today</span> : dayName}, {dateStr}
+        </div>
+        <button onClick={() => changeDate(1)} className="w-10 h-10 rounded-lg flex items-center justify-center border-0 cursor-pointer transition-colors bg-background hover:bg-accent-xlight text-text-muted hover:text-accent font-bold">
+          →
+        </button>
+        {!isToday && (
+          <div className="pl-2 border-l border-border">
+            <Btn size="sm" variant="secondary" onClick={goToToday}>Back to today</Btn>
+          </div>
+        )}
+      </div>
 
       {/* Progress Card */}
       <div className="p-6 rounded-2xl mb-8 shadow-sm" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
@@ -222,10 +246,12 @@ export default function Dashboard({ user, toast }) {
       {/* SCENARIO A: Has assigned plan */}
       {hasPlan ? (
         <div>
-          <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Today's Menu</h2>
+          <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>
+            {isToday ? "Today's Menu" : `Menu for ${dayName}`}
+          </h2>
           <div className="bg-surface border border-border rounded-2xl shadow-sm overflow-hidden">
             {MEALS.map((mealDef, index) => {
-              const mealsForThisType = todayScheduled.filter(m => m.meal_type === mealDef.id);
+              const mealsForThisType = targetScheduled.filter(m => m.meal_type === mealDef.id);
 
               const pairedLogIds = new Set();
               mealsForThisType.forEach(meal => {
@@ -248,7 +274,6 @@ export default function Dashboard({ user, toast }) {
                     <div className="font-bold text-sm text-text flex items-center gap-2">
                       <span>{mealDef.icon}</span> {mealDef.name}
                     </div>
-                    {/* Przycisk dodawania spoza diety */}
                     <Btn size="sm" variant="ghost" onClick={() => setAddModal({ mealId: mealDef.id })}>
                       ＋ Add extra
                     </Btn>
@@ -311,9 +336,11 @@ export default function Dashboard({ user, toast }) {
           </div>
         </div>
       ) : (
-        // SCENARIO B: Brak przypisanej diety (zostaje po staremu)
+        // SCENARIO B: Brak przypisanej diety
         <div>
-          <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Logged Today</h2>
+          <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>
+            {isToday ? "Logged Today" : `Logged on ${dayName}`}
+          </h2>
           <div className="bg-surface border border-border rounded-2xl shadow-sm overflow-hidden">
             {MEALS.map((meal, index) => {
               const mealLogs = logs.filter(l => l.meal_type === meal.id);
