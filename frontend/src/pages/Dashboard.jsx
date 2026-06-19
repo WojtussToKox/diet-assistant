@@ -48,16 +48,35 @@ export default function Dashboard({ user, toast }) {
   const todayScheduled = todayMenu ? scheduledMeals.filter(m => m.daily_menu === todayMenu.id) : [];
 
   let consumedKcal = 0;
+  let consumedProtein = 0;
+  let consumedFat = 0;
+  let consumedCarbs = 0;
+
   logs.forEach(log => {
     if (log.recipe) {
       const r = recipes.find(rec => rec.id === log.recipe);
-      if (r && r.total_calories) consumedKcal += r.total_calories;
+      if (r) {
+        if (r.total_calories) consumedKcal += parseFloat(r.total_calories);
+        if (r.total_protein) consumedProtein += parseFloat(r.total_protein);
+        if (r.total_fat) consumedFat += parseFloat(r.total_fat);
+        if (r.total_carbs) consumedCarbs += parseFloat(r.total_carbs);
+      }
     } else if (log.product) {
       const p = products.find(prod => prod.id === log.product);
-      if (p && p.calories_per_100g) consumedKcal += (p.calories_per_100g / 100) * log.weight_in_grams;
+      if (p) {
+        const multiplier = log.weight_in_grams / 100;
+        if (p.calories_per_100g) consumedKcal += parseFloat(p.calories_per_100g) * multiplier;
+        if (p.protein_per_100g) consumedProtein += parseFloat(p.protein_per_100g) * multiplier;
+        if (p.fat_per_100g) consumedFat += parseFloat(p.fat_per_100g) * multiplier;
+        if (p.carbs_per_100g) consumedCarbs += parseFloat(p.carbs_per_100g) * multiplier;
+      }
     }
   });
+
   consumedKcal = Math.round(consumedKcal);
+  consumedProtein = Math.round(consumedProtein);
+  consumedFat = Math.round(consumedFat);
+  consumedCarbs = Math.round(consumedCarbs);
 
   const targetKcal = hasPlan ? myPlan.daily_calories_goal : (user?.daily_caloric_needs || 2000);
   const remainingKcal = targetKcal - consumedKcal;
@@ -178,9 +197,25 @@ export default function Dashboard({ user, toast }) {
           </div>
         </div>
 
-        <div className="h-3 rounded-full overflow-hidden" style={{ background: 'var(--color-background)' }}>
+        <div className="h-3 rounded-full overflow-hidden mb-6" style={{ background: 'var(--color-background)' }}>
           <div className="h-full transition-all duration-500 ease-out"
             style={{ width: `${progressPct}%`, background: progressPct > 100 ? '#EF4444' : 'var(--color-accent)' }}></div>
+        </div>
+
+        {/* Macros Summary */}
+        <div className="flex gap-4 pt-4 border-t border-border">
+          <div className="flex-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Protein</div>
+            <div className="text-lg font-black" style={{ color: 'var(--color-text)' }}>{consumedProtein}g</div>
+          </div>
+          <div className="flex-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Fat</div>
+            <div className="text-lg font-black" style={{ color: 'var(--color-text)' }}>{consumedFat}g</div>
+          </div>
+          <div className="flex-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Carbs</div>
+            <div className="text-lg font-black" style={{ color: 'var(--color-text)' }}>{consumedCarbs}g</div>
+          </div>
         </div>
       </div>
 
@@ -188,50 +223,95 @@ export default function Dashboard({ user, toast }) {
       {hasPlan ? (
         <div>
           <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Today's Menu</h2>
-          {todayScheduled.length === 0 ? (
-            <EmptyState icon="🍽️" title="Free day!" sub="Your dietitian hasn't scheduled anything for today." />
-          ) : (
-            <div className="bg-surface border border-border rounded-2xl shadow-sm overflow-hidden">
-              {MEALS.map((mealDef) => {
-                const mealsForThisType = todayScheduled.filter(m => m.meal_type === mealDef.id);
-                if (mealsForThisType.length === 0) return null; // Hide empty sections
-                const renderedGroups = MEALS.filter(md => todayScheduled.some(m => m.meal_type === md.id));
-                const isLast = renderedGroups[renderedGroups.length - 1].id === mealDef.id;
+          <div className="bg-surface border border-border rounded-2xl shadow-sm overflow-hidden">
+            {MEALS.map((mealDef, index) => {
+              const mealsForThisType = todayScheduled.filter(m => m.meal_type === mealDef.id);
 
-                return (
-                  <div key={mealDef.id} className={`p-5 ${!isLast ? 'border-b border-dashed border-border' : ''}`}>
-                    <div className="font-bold text-sm text-text flex items-center gap-2 mb-3">
+              const pairedLogIds = new Set();
+              mealsForThisType.forEach(meal => {
+                const matchingLog = logs.find(l =>
+                  l.meal_type === meal.meal_type &&
+                  l.recipe === meal.recipe &&
+                  l.product === meal.product &&
+                  !pairedLogIds.has(l.id)
+                );
+                if (matchingLog) pairedLogIds.add(matchingLog.id);
+              });
+
+              const extraLogsForThisType = logs.filter(l =>
+                l.meal_type === mealDef.id && !pairedLogIds.has(l.id)
+              );
+
+              return (
+                <div key={mealDef.id} className={`p-5 ${index !== MEALS.length - 1 ? 'border-b border-dashed border-border' : ''}`}>
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="font-bold text-sm text-text flex items-center gap-2">
                       <span>{mealDef.icon}</span> {mealDef.name}
                     </div>
+                    {/* Przycisk dodawania spoza diety */}
+                    <Btn size="sm" variant="ghost" onClick={() => setAddModal({ mealId: mealDef.id })}>
+                      ＋ Add extra
+                    </Btn>
+                  </div>
 
-                    <div className="grid gap-2">
-                      {mealsForThisType.map(meal => {
-                        const isEaten = logs.some(l => l.meal_type === meal.meal_type && l.recipe === meal.recipe && l.product === meal.product);
+                  <div className="grid gap-2">
+                    {/* 1. ZAPLANOWANE POSIŁKI */}
+                    {mealsForThisType.map(meal => {
+                      const matchingLog = logs.find(l =>
+                        l.meal_type === meal.meal_type &&
+                        l.recipe === meal.recipe &&
+                        l.product === meal.product
+                      );
+                      const isEaten = !!matchingLog;
 
-                        return (
-                          <div key={meal.id} onClick={() => togglePlannedMeal(meal)}
-                            className={`p-4 rounded-xl cursor-pointer transition-all border flex items-center justify-between 
-                                                         ${isEaten ? 'bg-accent-xlight/30 border-accent/40' : 'bg-background border-border hover:border-accent'}`}>
-                            <div className="flex items-center gap-4">
-                              <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-colors ${isEaten ? 'bg-accent border-accent text-white' : 'border-border'}`}>
-                                {isEaten && "✓"}
-                              </div>
-                              <div className={`font-semibold text-sm transition-colors ${isEaten ? 'text-text-muted line-through opacity-70' : 'text-text'}`}>
-                                {getItemName(!!meal.recipe, meal.recipe || meal.product)}
-                                {!meal.recipe && <span className="ml-1 text-xs text-accent">({meal.weight_in_grams}g)</span>}
-                              </div>
+                      return (
+                        <div key={meal.id} onClick={() => togglePlannedMeal(meal)}
+                          className={`p-4 rounded-xl cursor-pointer transition-all border flex items-center justify-between 
+                                                       ${isEaten ? 'bg-accent-xlight/30 border-accent/40' : 'bg-background border-border hover:border-accent'}`}>
+                          <div className="flex items-center gap-4">
+                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-colors ${isEaten ? 'bg-accent border-accent text-white' : 'border-border'}`}>
+                              {isEaten && "✓"}
+                            </div>
+                            <div className={`font-semibold text-sm transition-colors ${isEaten ? 'text-text-muted line-through opacity-70' : 'text-text'}`}>
+                              {getItemName(!!meal.recipe, meal.recipe || meal.product)}
+                              {!meal.recipe && <span className="ml-1 text-xs text-accent">({meal.weight_in_grams}g)</span>}
                             </div>
                           </div>
-                        )
-                      })}
-                    </div>
+                        </div>
+                      )
+                    })}
+
+                    {/* 2. NADPROGRAMOWE POSIŁKI (SPOZA DIETY) */}
+                    {extraLogsForThisType.map(log => (
+                      <div key={log.id} className="flex justify-between items-center p-4 rounded-xl bg-background border border-border">
+                        <div className="flex items-center gap-4">
+                          <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-surface border border-border text-xs text-text-muted opacity-70">
+                            +
+                          </div>
+                          <div className="text-sm font-medium text-text">
+                            {getItemName(!!log.recipe, log.recipe || log.product)}
+                            {!log.recipe && <span className="ml-2 text-xs font-bold px-2 py-1 rounded bg-accent-xlight text-accent">{log.weight_in_grams}g</span>}
+                            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-md bg-border text-text-muted uppercase tracking-wider">Extra</span>
+                          </div>
+                        </div>
+                        <button onClick={() => removeLog(log.id)} className="w-8 h-8 rounded-lg flex items-center justify-center border-0 cursor-pointer text-sm transition-colors bg-danger-light text-danger hover:opacity-80">
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* 3. BRAK POSIŁKÓW */}
+                    {mealsForThisType.length === 0 && extraLogsForThisType.length === 0 && (
+                      <div className="text-xs text-text-muted mt-1 mb-1">No meals planned or logged.</div>
+                    )}
                   </div>
-                )
-              })}
-            </div>
-          )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       ) : (
+        // SCENARIO B: Brak przypisanej diety (zostaje po staremu)
         <div>
           <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Logged Today</h2>
           <div className="bg-surface border border-border rounded-2xl shadow-sm overflow-hidden">
