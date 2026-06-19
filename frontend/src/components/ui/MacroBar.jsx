@@ -2,9 +2,9 @@ export const MacroBar = ({ protein, fat, carbs, calories }) => {
   const p = Number(protein) || 0, f = Number(fat) || 0, c = Number(carbs) || 0;
   const total = p * 4 + f * 9 + c * 4 || 1;
   const segments = [
-    { colorClass: "bg-macro-protein", pct: (p * 4 / total) * 100, label: "Białko", val: p },
-    { colorClass: "bg-macro-fat", pct: (f * 9 / total) * 100, label: "Tłuszcz", val: f },
-    { colorClass: "bg-macro-carbs", pct: (c * 4 / total) * 100, label: "Węgle", val: c },
+    { colorClass: "bg-macro-protein", pct: (p * 4 / total) * 100, label: "Protein", val: p },
+    { colorClass: "bg-macro-fat", pct: (f * 9 / total) * 100, label: "Fat", val: f },
+    { colorClass: "bg-macro-carbs", pct: (c * 4 / total) * 100, label: "Carbs", val: c },
   ];
   return (
     <div>
