@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useList } from "../hooks/useList";
-import { apiFetch } from "../services/api";
 import { Button as Btn } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Spinner } from "../components/ui/Spinner";
 import { EmptyState } from "../components/ui/EmptyState";
 import { FiEdit2, FiTrash2, FiPlus, FiEye, FiArrowLeft } from "react-icons/fi";
+import { apiFetch } from "../services/api";
+import { exportShoppingListCsv } from "../services/api";
+import { FiDownload } from "react-icons/fi";
 
 const DAYS = [
   { id: 1, name: "Monday" }, { id: 2, name: "Tuesday" }, { id: 3, name: "Wednesday" },
@@ -130,6 +132,15 @@ export default function DietPlansPanel({ toast, user }) {
       source: 'sidebar', isRecipe, itemId: item.id, name: item.name
     }));
   };
+
+  const handleExportShoppingList = async (planId) => {
+    try {
+        await exportShoppingListCsv(planId);
+        toast("Shopping list exported successfully!", "success");
+    } catch (e) {
+        toast("Failed to export shopping list.", "error");
+    }
+};
 
   const handleDragStartBoard = (e, uuid) => {
     e.dataTransfer.setData('application/json', JSON.stringify({ source: 'board', uuid }));
@@ -275,6 +286,16 @@ export default function DietPlansPanel({ toast, user }) {
                 </div>
 
                 <div className="flex gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => handleExportShoppingList(p.id)}
+                    title="Download shopping list"
+                    className="h-9 px-3 rounded-xl flex items-center justify-center border-0 cursor-pointer transition-colors text-sm font-semibold gap-1.5"
+                    style={{ background: 'var(--color-accent)', color: '#ffffff' }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                  >
+                    <FiDownload size={16} /> Shopping list
+                  </button>
                   <button
                     onClick={() => openView(p)}
                     title="Zobacz plan"

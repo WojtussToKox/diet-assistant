@@ -78,3 +78,28 @@ export const importProductsCsv = async (file) => {
 
   return res.json();
 };
+
+// Opcja eksportu listy zakupów
+export const exportShoppingListCsv = async (planId) => {
+    const token = localStorage.getItem("access_token");
+const res = await fetch(`${API_BASE}/diet-plans/${planId}/export-shopping-list/`, {        method: "GET",
+        headers: {
+            ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        }
+    });
+
+    if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || "Failed to export shopping list");
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `shopping_list_plan_${planId}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+};

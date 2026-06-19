@@ -1,6 +1,6 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
-from .views import RecipeViewSet, DietPlanViewSet, DailyMenuViewSet, ScheduledMealViewSet, DietPlanBuilderView, MealLogViewSet
+from .views import RecipeViewSet, DietPlanViewSet, DailyMenuViewSet, ScheduledMealViewSet, DietPlanBuilderView, MealLogViewSet, DietPlanExportView
 
 router = DefaultRouter()
 router.register('recipes', RecipeViewSet, basename='recipe')
@@ -12,4 +12,5 @@ router.register('meal-logs', MealLogViewSet, basename='meal-log')
 urlpatterns = [
     path('diet-plans/bulk-create/', DietPlanBuilderView.as_view(), name='bulk-create-plan'),
     path('diet-plans/<int:plan_id>/bulk-update/', DietPlanBuilderView.as_view(), name='bulk-update-plan'),
+    path('diet-plans/<int:plan_id>/export-shopping-list/', DietPlanExportView.as_view(), name='export-shopping-list'),
 ] + router.urls

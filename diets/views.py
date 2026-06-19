@@ -6,6 +6,9 @@ from rest_framework.permissions import IsAuthenticated
 from .permissions import CanManageDietPlan
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Recipe, DietPlan, DailyMenu, ScheduledMeal, MealLog
+from django.http import HttpResponse
+import csv
+from diets.services import DietPlanExportService
 from .serializers import (
     RecipeListSerializer,
     RecipeDetailSerializer,
@@ -50,6 +53,39 @@ class DietPlanViewSet(MixedSerializerMixin, viewsets.ModelViewSet):
             return base_qs.filter(patient=user)
         return base_qs.none()
 
+
+class DietPlanExportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, plan_id):
+        plan = DietPlan.objects.filter(id=plan_id).first()
+        if not plan:
+            return Response({"detail": "Plan not found."}, status=404)
+
+        if request.user.role == 'PATIENT' and plan.patient != request.user:
+            return Response({"detail": "You cannot export someone else's plan."}, status=403)
+
+        try:
+            export_service = DietPlanExportService(plan)
+            shopping_list_data = export_service._aggregate_shopping_list()
+
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="shopping_list_plan_{plan.id}.csv"'
+
+            writer = csv.writer(response)
+            writer.writerow(['Product Name', 'Total Grams', 'Total Calories'])
+
+            for item in shopping_list_data:
+                writer.writerow([
+                    item.get('product_name', ''),
+                    item.get('total_grams', 0),
+                    item.get('total_calories', 0)
+                ])
+
+            return response
+
+        except Exception as e:
+            return Response({"detail": f"Export error: {str(e)}"}, status=400)
 
 class DailyMenuViewSet(MixedSerializerMixin, viewsets.ModelViewSet):
     list_serializer_class = DailyMenuListSerializer

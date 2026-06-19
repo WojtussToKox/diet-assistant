@@ -188,7 +188,8 @@ class DietPlanExportService:
         })
 
         daily_menus = self.diet_plan.daily_menus.prefetch_related(
-            'meals__recipe__recipeingredient_set__product'
+            'meals__recipe__recipeingredient_set__product',
+            'meals__product'
         ).all()
 
         if not daily_menus.exists():
@@ -197,25 +198,33 @@ class DietPlanExportService:
             )
 
         for menu in daily_menus:
-            for meal in menu.meals.select_related('recipe').all():
-                if not meal.recipe:
-                    raise MissingRecipeError(
-                        f"Cannot aggregate shopping list. "
-                        f"ScheduledMeal ID: {meal.id} has no assigned recipe."
-                    )
+            for meal in menu.meals.select_related('recipe', 'product').all():
+                if meal.recipe:
+                    ingredients = meal.recipe.recipeingredient_set.select_related('product').all()
+                    for ingredient in ingredients:
+                        product = ingredient.product
+                        entry = aggregated[product.name]
 
-                ingredients = meal.recipe.recipeingredient_set.select_related('product').all()
-                for ingredient in ingredients:
-                    product = ingredient.product
+                        entry['product_id'] = product.id
+                        entry['total_grams'] += ingredient.weight_in_grams
+
+                        macros = self.calculator.calculate_ingredient(
+                            ingredient.weight_in_grams, product
+                        )
+                        entry['total_calories'] += macros['calories']
+
+                elif meal.product:
+                    product = meal.product
                     entry = aggregated[product.name]
 
                     entry['product_id'] = product.id
-                    entry['total_grams'] += ingredient.weight_in_grams
+                    entry['total_grams'] += meal.weight_in_grams
 
                     macros = self.calculator.calculate_ingredient(
-                        ingredient.weight_in_grams, product
+                        meal.weight_in_grams, product
                     )
                     entry['total_calories'] += macros['calories']
+
         if not aggregated:
             raise DataAggregationError(
                 f"DietPlan '{self.diet_plan.name}' contains no ingredients to aggregate."
