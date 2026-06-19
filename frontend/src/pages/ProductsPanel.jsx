@@ -9,6 +9,7 @@ import { Spinner } from "../components/ui/Spinner";
 import { Badge } from "../components/ui/Badge";
 import { MacroBar } from "../components/ui/MacroBar";
 import { EmptyState } from "../components/ui/EmptyState";
+import { FiEdit2, FiTrash2, FiPlus } from "react-icons/fi";
 
 const fmt = (n) => Number(n).toFixed(1);
 
@@ -32,21 +33,21 @@ export default function ProductsPanel({ toast }) {
     try {
       if (modal === "add") {
         await apiFetch("/products/", { method: "POST", body: JSON.stringify(form) });
-        toast("Produkt dodany", "success");
+        toast("Product added", "success");
       } else {
         await apiFetch(`/products/${modal.id}/`, { method: "PUT", body: JSON.stringify(form) });
-        toast("Produkt zaktualizowany", "success");
+        toast("Product updated", "success");
       }
       setModal(null); reload();
-    } catch (e) { toast("Błąd: " + e.message, "error"); }
+    } catch (e) { toast("Error: " + e.message, "error"); }
     finally { setSaving(false); }
   };
   const remove = async (id) => {
-    if (!window.confirm("Usunąć produkt?")) return;
+    if (!window.confirm("Delete product?")) return;
     try {
       await apiFetch(`/products/${id}/`, { method: "DELETE" });
-      toast("Produkt usunięty", "success"); reload();
-    } catch { toast("Błąd usuwania", "error"); }
+      toast("Product deleted", "success"); reload();
+    } catch { toast("Error when trying to delete", "error"); }
   };
 
   const filtered = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
@@ -56,10 +57,10 @@ export default function ProductsPanel({ toast }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="m-0 text-2xl font-bold" style={{ color: 'var(--color-text)' }}>Produkty</h2>
-          <p className="m-0 mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>{products.length} produktów w bazie</p>
+          <h2 className="m-0 text-2xl font-bold" style={{ color: 'var(--color-text)' }}>Products</h2>
+          <p className="m-0 mt-1 text-sm" style={{ color: 'var(--color-text-muted)' }}>{products.length} product registered</p>
         </div>
-        <Btn onClick={openAdd}>＋ Dodaj produkt</Btn>
+        <Btn onClick={openAdd}><FiPlus /> Add product</Btn>
       </div>
 
       {/* Search */}
@@ -67,7 +68,7 @@ export default function ProductsPanel({ toast }) {
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--color-text-muted)' }}>🔍</span>
         <input
           value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Szukaj produktu…"
+          placeholder="Find product…"
           className="w-full box-border pl-10 pr-4 py-3 text-sm rounded-xl outline-none transition-all"
           style={{ background: 'var(--color-surface)', border: '1.5px solid var(--color-border)', color: 'var(--color-text)' }}
           onFocus={e => e.target.style.borderColor = 'var(--color-accent)'}
@@ -76,7 +77,7 @@ export default function ProductsPanel({ toast }) {
       </div>
 
       {loading ? <Spinner /> : filtered.length === 0 ? (
-        <EmptyState icon="🥗" title="Brak produktów" sub="Dodaj pierwszy produkt do bazy." action={<Btn onClick={openAdd}>Dodaj produkt</Btn>} />
+        <EmptyState icon="🥗" title="No products yet" sub="Add the first product now." action={<Btn onClick={openAdd}>Add new</Btn>} />
       ) : (
         <div className="grid gap-3">
           {filtered.map(p => (
@@ -91,8 +92,8 @@ export default function ProductsPanel({ toast }) {
                   </div>
                 </div>
                 <div className="flex gap-1.5 shrink-0">
-                  <Btn variant="ghost" size="sm" onClick={() => openEdit(p)}>✏️</Btn>
-                  <Btn variant="ghost" size="sm" onClick={() => remove(p.id)}>🗑️</Btn>
+                  <Btn variant="ghost" size="sm" onClick={() => openEdit(p)}><FiEdit2 /></Btn>
+                  <Btn variant="ghost" size="sm" onClick={() => remove(p.id)}><FiTrash2 /></Btn>
                 </div>
               </div>
               <MacroBar protein={p.protein_per_100g} fat={p.fat_per_100g} carbs={p.carbs_per_100g} />
@@ -104,22 +105,22 @@ export default function ProductsPanel({ toast }) {
       {modal && (
         <Modal title={modal === "add" ? "Nowy produkt" : "Edytuj produkt"} onClose={() => setModal(null)}>
           <div className="grid gap-4">
-            <Input label="Nazwa produktu" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required placeholder="np. Kurczak pierś" />
-            <Input label="Kalorie (kcal / 100g)" type="number" value={form.calories_per_100g} onChange={v => setForm(f => ({ ...f, calories_per_100g: v }))} min="0" step="0.01" required />
+            <Input label="Name" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} required />
+            <Input label="Calories (kcal / 100g)" type="number" value={form.calories_per_100g} onChange={v => setForm(f => ({ ...f, calories_per_100g: v }))} min="0" step="0.01" required />
             <div className="grid grid-cols-3 gap-3">
-              <Input label="Białko (g)" type="number" value={form.protein_per_100g} onChange={v => setForm(f => ({ ...f, protein_per_100g: v }))} min="0" step="0.01" />
-              <Input label="Tłuszcz (g)" type="number" value={form.fat_per_100g} onChange={v => setForm(f => ({ ...f, fat_per_100g: v }))} min="0" step="0.01" />
-              <Input label="Węgle (g)" type="number" value={form.carbs_per_100g} onChange={v => setForm(f => ({ ...f, carbs_per_100g: v }))} min="0" step="0.01" />
+              <Input label="Protein (g)" type="number" value={form.protein_per_100g} onChange={v => setForm(f => ({ ...f, protein_per_100g: v }))} min="0" step="0.01" />
+              <Input label="Fat (g)" type="number" value={form.fat_per_100g} onChange={v => setForm(f => ({ ...f, fat_per_100g: v }))} min="0" step="0.01" />
+              <Input label="Carbs (g)" type="number" value={form.carbs_per_100g} onChange={v => setForm(f => ({ ...f, carbs_per_100g: v }))} min="0" step="0.01" />
             </div>
             {(form.protein_per_100g || form.fat_per_100g || form.carbs_per_100g) ? (
               <div className="p-4 rounded-xl" style={{ background: 'var(--color-background)' }}>
-                <div className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Podgląd makroskładników</div>
+                <div className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Macros</div>
                 <MacroBar protein={form.protein_per_100g || 0} fat={form.fat_per_100g || 0} carbs={form.carbs_per_100g || 0} calories={form.calories_per_100g || 0} />
               </div>
             ) : null}
             <div className="flex gap-2.5 justify-end mt-1">
-              <Btn variant="secondary" onClick={() => setModal(null)}>Anuluj</Btn>
-              <Btn onClick={save} disabled={saving}>{saving ? "Zapisywanie…" : "Zapisz"}</Btn>
+              <Btn variant="secondary" onClick={() => setModal(null)}>Cancel</Btn>
+              <Btn onClick={save} disabled={saving}>{saving ? "Saving" : "Save"}</Btn>
             </div>
           </div>
         </Modal>
