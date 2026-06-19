@@ -85,10 +85,10 @@ export default function App() {
     { id: "recipes", label: "Recipes", icon: () => <TbToolsKitchen3 /> },
     { id: "diet-plans", label: "Diet plans", icon: () => <FaRegCalendar /> },
     ...(user?.role === 'DIETITIAN' ? [
-      { id: "patients", label: "Podopieczni", icon: () => <FaUserGroup /> },
+      { id: "patients", label: "Patients", icon: () => <FaUserGroup /> },
     ] : []),
     ...(user?.role !== 'DIETITIAN' ? [
-      { id: "find-dietitian", label: "Znajdź dietetyka", icon: () => <FaUserGroup /> },
+      { id: "find-dietitian", label: "Find dietitian", icon: () => <FaUserGroup /> },
     ] : []),
     { id: "settings", label: "Settings", icon: () => <TbSettings />, bottom: true },
   ];
@@ -155,7 +155,7 @@ export default function App() {
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--color-sidebar-text)' }}>{role}</div>
+                <div className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--color-sidebar-text)' }}>{name}</div>
                 <div className="text-[11px] truncate" style={{ color: 'var(--color-sidebar-muted)' }}>{user?.email || ''}</div>
               </div>
             </div>
