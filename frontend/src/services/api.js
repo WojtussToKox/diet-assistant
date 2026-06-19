@@ -49,3 +49,32 @@ export async function apiFetch(path, opts = {}) {
     return null;
   }
 }
+
+// Opcja importu produktów z pliku CSV
+export const importProductsCsv = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const token = localStorage.getItem("access_token");
+
+  const res = await fetch(`${API_BASE}/products/import_csv/`, {
+    method: "POST",
+    headers: {
+      ...(token ? { "Authorization": `Bearer ${token}` } : {})
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    let detailMessage = "A server error occurred during import.";
+    try {
+      const errData = JSON.parse(errText);
+      detailMessage = errData.detail || detailMessage;
+    } catch (e) {}
+
+    throw { response: { data: { detail: detailMessage } } };
+  }
+
+  return res.json();
+};
