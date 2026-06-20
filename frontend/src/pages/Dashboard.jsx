@@ -99,7 +99,8 @@ export default function Dashboard({ user, toast }) {
     const existingLog = logs.find(l =>
       l.meal_type === scheduled.meal_type &&
       l.recipe === scheduled.recipe &&
-      l.product === scheduled.product
+      l.product === scheduled.product &&
+        String(l.weight_in_grams) === String(scheduled.weight_in_grams)
     );
 
     try {
@@ -259,6 +260,7 @@ export default function Dashboard({ user, toast }) {
                   l.meal_type === meal.meal_type &&
                   l.recipe === meal.recipe &&
                   l.product === meal.product &&
+                  String(l.weight_in_grams) === String(meal.weight_in_grams) &&
                   !pairedLogIds.has(l.id)
                 );
                 if (matchingLog) pairedLogIds.add(matchingLog.id);
@@ -285,7 +287,8 @@ export default function Dashboard({ user, toast }) {
                       const matchingLog = logs.find(l =>
                         l.meal_type === meal.meal_type &&
                         l.recipe === meal.recipe &&
-                        l.product === meal.product
+                        l.product === meal.product &&
+                        String(l.weight_in_grams) === String(meal.weight_in_grams)
                       );
                       const isEaten = !!matchingLog;
 
@@ -385,7 +388,7 @@ export default function Dashboard({ user, toast }) {
             <button onClick={() => setTab('products')} className={`flex-1 py-2 text-sm font-semibold rounded-lg border-0 cursor-pointer transition-all ${tab === 'products' ? 'bg-surface shadow-sm text-accent' : 'bg-transparent text-text-muted'}`}>Products</button>
           </div>
 
-          <Input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search..." value={search} onChange={v => setSearch(v)} />
 
           <div className="mt-4 max-h-[300px] overflow-y-auto space-y-2 pr-2">
             {filteredSidebar.length === 0 ? (
