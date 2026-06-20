@@ -149,28 +149,28 @@ export default function SettingsPanel({ user, setUser, toast, onLogout }) {
                     <Input
                         label="First Name"
                         value={profileForm.first_name}
-                        onChange={e => setProfileForm(f => ({ ...f, first_name: e.target.value }))}
+                        onChange={v => setProfileForm(f => ({ ...f, first_name: v }))}
                         placeholder="Your name"
                     />
                     <Input
                         label="Email"
                         type="email"
                         value={profileForm.email}
-                        onChange={e => setProfileForm(f => ({ ...f, email: e.target.value }))}
+                        onChange={v => setProfileForm(f => ({ ...f, email: v }))}
                         placeholder="address@email.com"
                     />
                     <Input
                         label="Height (cm)"
                         type="number"
                         value={profileForm.height_cm}
-                        onChange={e => setProfileForm(f => ({ ...f, height_cm: e.target.value }))}
+                        onChange={v => setProfileForm(f => ({ ...f, height_cm: v }))}
                         min="100" max="250"
                     />
                     <Input
                         label="Weight (kg)"
                         type="number"
                         value={profileForm.weight_kg}
-                        onChange={e => setProfileForm(f => ({ ...f, weight_kg: e.target.value }))}
+                        onChange={v => setProfileForm(f => ({ ...f, weight_kg: v }))}
                         min="30" max="300" step="0.1"
                     />
                 </div>
