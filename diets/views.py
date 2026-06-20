@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from django.db import transaction
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
-from .permissions import CanManageDietPlan
+from .permissions import CanManageDietPlan, CanManageRecipe
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Recipe, DietPlan, DailyMenu, ScheduledMeal, MealLog
 from django.http import HttpResponse
@@ -36,8 +36,10 @@ class RecipeViewSet(MixedSerializerMixin, viewsets.ModelViewSet):
     queryset = Recipe.objects.prefetch_related('recipeingredient_set__product')
     list_serializer_class = RecipeListSerializer
     detail_serializer_class = RecipeDetailSerializer
-    permission_classes = [IsAuthenticated, CanManageDietPlan]
+    permission_classes = [IsAuthenticated, CanManageRecipe]
 
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
 
 class DietPlanViewSet(MixedSerializerMixin, viewsets.ModelViewSet):
     list_serializer_class = DietPlanListSerializer

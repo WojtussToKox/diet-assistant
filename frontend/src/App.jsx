@@ -195,7 +195,7 @@ export default function App() {
               <>
                 {page === "dashboard" && <Dashboard user={user} />}
                 {page === "products" && <ProductsPanel toast={showToast} user={user} />}
-                {page === "recipes" && <RecipesPanel toast={showToast} />}
+                {page === "recipes" && <RecipesPanel toast={showToast} user={user} />}
                 {page === "diet-plans" && <DietPlansPanel toast={showToast} user={user} />}
                 {page === "settings" && <SettingsPanel user={user} setUser={setUser} toast={showToast} onLogout={handleLogout} />}
                 {page === "patients" && <DietitianDashboard user={user} toast={showToast} />}

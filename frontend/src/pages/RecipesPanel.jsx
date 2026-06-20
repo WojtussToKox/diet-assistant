@@ -11,7 +11,7 @@ import { MacroBar } from "../components/ui/MacroBar";
 import { EmptyState } from "../components/ui/EmptyState";
 import { FiEdit2, FiTrash2, FiPlus } from "react-icons/fi";
 
-export default function RecipesPanel({ toast }) {
+export default function RecipesPanel({ user, toast }) {
   const { data: recipes, loading, reload } = useList("/recipes/");
   const { data: products } = useList("/products/");
   const [modal, setModal] = useState(null);
@@ -75,6 +75,7 @@ export default function RecipesPanel({ toast }) {
 
   const filtered = recipes.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
 
+  console.log("=== DEBUG ===", { user_w_panelu: user, pierwszy_przepis: recipes[0] });
   return (
     <div className="pb-16 animate-fadeUp">
       <div className="flex items-center justify-between mb-8">
@@ -108,10 +109,12 @@ export default function RecipesPanel({ toast }) {
                   <div className="font-semibold text-base" style={{ color: 'var(--color-text)' }}>{r.name}</div>
                   {r.description && <div className="text-sm mt-1 leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>{r.description.slice(0, 120)}{r.description.length > 120 ? "…" : ""}</div>}
                 </div>
-                <div className="flex gap-1.5 ml-3 shrink-0" onClick={e => e.stopPropagation()}>
-                  <Btn variant="ghost" size="sm" onClick={() => openEdit(r)}><FiEdit2 /></Btn>
-                  <Btn variant="ghost" size="sm" onClick={() => remove(r.id)}><FiTrash2 /></Btn>
-                </div>
+                {r.author === user?.id && (
+                  <div className="flex gap-1.5 ml-3 shrink-0" onClick={e => e.stopPropagation()}>
+                    <Btn variant="ghost" size="sm" onClick={() => openEdit(r)}><FiEdit2 /></Btn>
+                    <Btn variant="ghost" size="sm" onClick={() => remove(r.id)}><FiTrash2 /></Btn>
+                  </div>
+                )}
               </div>
             </Card>
           ))}
@@ -140,9 +143,12 @@ export default function RecipesPanel({ toast }) {
               </div>
             );
           })()}
-          <div className="mt-4 flex justify-end">
-            <Btn variant="secondary" onClick={() => { setDetail(null); openEdit(detail); }}><FiEdit2 className="mr-1" /> Edit</Btn>
-          </div>
+
+          {detail.author === user?.id && (
+             <div className="mt-4 flex justify-end">
+               <Btn variant="secondary" onClick={() => { setDetail(null); openEdit(detail); }}><FiEdit2 className="mr-1" /> Edit</Btn>
+             </div>
+          )}
         </Modal>
       )}
 

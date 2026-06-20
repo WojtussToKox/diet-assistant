@@ -13,10 +13,11 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 
 class RecipeListSerializer(serializers.ModelSerializer):
     total_calories = serializers.SerializerMethodField()
+    author = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Recipe
-        fields = ['id', 'name', 'description', 'total_calories']
+        fields = ['id', 'name', 'author', 'description', 'total_calories']
     def get_total_calories(self, obj):
         macros = DietCalculatorService.calculate_recipe(obj)
         return float(macros['calories'])
@@ -24,7 +25,7 @@ class RecipeListSerializer(serializers.ModelSerializer):
 
 class RecipeDetailSerializer(serializers.ModelSerializer):
     ingredients = RecipeIngredientSerializer(source='recipeingredient_set', many=True)
-    author = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    author = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Recipe
