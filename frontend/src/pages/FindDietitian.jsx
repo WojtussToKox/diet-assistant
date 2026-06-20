@@ -70,6 +70,12 @@ export default function FindDietitian({ toast }) {
         (d.email || "").toLowerCase().includes(search.toLowerCase())
     );
 
+    const getDietitianName = (id) => {
+        const d = dietitians.find(doc => doc.id === id);
+        if (!d) return `User #${id}`;
+        return d.first_name ? `${d.first_name} ${d.last_name || ''}`.trim() : d.username;
+    };
+
     return (
         <div className="pb-16 animate-fadeUp flex gap-8 items-start">
 
@@ -104,7 +110,10 @@ export default function FindDietitian({ toast }) {
                     <div className="grid gap-3">
                         {filtered.map(d => {
                             const initials = (d.first_name || d.username).slice(0, 2).toUpperCase();
-                            const existingReq = requests.find(r => r.dietitian === d.id);
+
+                            const isRequestActive = requests.some(r =>
+                                r.dietitian === d.id && (r.status === 'PENDING' || r.status === 'ACCEPTED')
+                            );
 
                             return (
                                 <div key={d.id} className="p-4 rounded-2xl flex items-center justify-between" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
@@ -123,7 +132,7 @@ export default function FindDietitian({ toast }) {
                                         </div>
                                     </div>
 
-                                    {existingReq ? (
+                                    {isRequestActive ? (
                                         <div className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--color-background)', color: 'var(--color-text-muted)' }}>
                                             Request sent
                                         </div>
@@ -144,7 +153,7 @@ export default function FindDietitian({ toast }) {
                     <p className="m-0 mt-0.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>Status of your requests</p>
                 </div>
 
-                {loadingR ? <Spinner /> : requests.length === 0 ? (
+                {loadingR || loadingD ? <Spinner /> : requests.length === 0 ? (
                     <EmptyState icon={<FaClipboardList className="text-4xl opacity-50" />} title="No active requests" sub="You haven't sent any cooperation requests yet." />
                 ) : (
                     requests.map(r => (
@@ -152,7 +161,7 @@ export default function FindDietitian({ toast }) {
                             <div className="flex justify-between items-start mb-3">
                                 <div>
                                     <div className="text-[10px] uppercase font-bold tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>To:</div>
-                                    <div className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{r.dietitian_name}</div>
+                                    <div className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{getDietitianName(r.dietitian)}</div>
                                 </div>
                                 <StatusBadge status={r.status} />
                             </div>
