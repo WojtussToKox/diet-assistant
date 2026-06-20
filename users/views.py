@@ -93,17 +93,31 @@ class DietitianRequestViewSet(viewsets.ModelViewSet):
         serializer.save(patient=self.request.user)
 
     def create(self, request, *args, **kwargs):
-        # nie można wysłać prośby do samego siebie
         dietitian_id = request.data.get('dietitian')
+
+        # nie można wysłać prośby do samego siebie
         if str(request.user.id) == str(dietitian_id):
             return Response({'detail': 'Cannot send request to yourself.'},
                             status=status.HTTP_400_BAD_REQUEST)
-        # nie można wysłać drugiej prośby do tego samego dietetyka
-        if DietitianRequest.objects.filter(
-            patient=request.user, dietitian_id=dietitian_id, status='PENDING'
-        ).exists():
-            return Response({'detail': 'Request already pending.'},
-                            status=status.HTTP_400_BAD_REQUEST)
+
+        existing_req = DietitianRequest.objects.filter(
+            patient=request.user, dietitian_id=dietitian_id
+        ).first()
+
+        if existing_req:
+            if existing_req.status == 'PENDING':
+                return Response({'detail': 'Request already pending.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            elif existing_req.status == 'ACCEPTED':
+                return Response({'detail': 'You are already cooperating with this dietitian.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            elif existing_req.status == 'REJECTED':
+                existing_req.status = 'PENDING'
+                existing_req.message = request.data.get('message', '')
+                existing_req.save()
+                serializer = self.get_serializer(existing_req)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+
         return super().create(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'])

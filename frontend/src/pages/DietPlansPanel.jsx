@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useList } from "../hooks/useList";
 import { Button as Btn } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -22,7 +22,7 @@ const MEALS = [
   { id: "SUPPER", name: "SUPPER", icon: "🌙" },
 ];
 
-export default function DietPlansPanel({ toast, user }) {
+export default function DietPlansPanel({ toast, user, targetPlanId, setTargetPlanId, returnPage, onReturn }) {
   const { data: plans, loading: loadingPlans, reload: reloadPlans } = useList("/diet-plans/");
   const { data: recipes } = useList("/recipes/");
   const { data: products } = useList("/products/");
@@ -95,6 +95,24 @@ export default function DietPlansPanel({ toast, user }) {
       toast("Błąd ładowania planu: " + e.message, "error");
     } finally {
       setLoadingPlanDetail(false);
+    }
+  };
+
+  useEffect(() => {
+    if (targetPlanId && plans.length > 0) {
+      const planToOpen = plans.find(p => p.id === targetPlanId);
+      if (planToOpen) {
+        openEdit(planToOpen);
+        setTargetPlanId(null);
+      }
+    }
+  }, [targetPlanId, plans]);
+
+  const handleExit = () => {
+    if (returnPage) {
+      onReturn();
+    } else {
+      setView("list");
     }
   };
 
@@ -246,7 +264,7 @@ export default function DietPlansPanel({ toast, user }) {
       }
 
       reloadPlans();
-      setView("list");
+      handleExit();
       setEditingPlanId(null);
     } catch (e) {
       toast("Błąd: " + e.message, "error");
@@ -304,7 +322,7 @@ export default function DietPlansPanel({ toast, user }) {
 
   // ---------- WIDOK LISTY ----------
   if (view === "list") {
-    return (
+    const displayedPlans = isDietitian ? plans.filter(p => p.patient === null) : plans;    return (
       <div className="pb-16 animate-fadeUp">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -321,7 +339,7 @@ export default function DietPlansPanel({ toast, user }) {
           <EmptyState icon="📅" title="No plans yet" sub="Create your first one now." />
         ) : (
           <div className="grid gap-3">
-            {plans.map(p => (
+            {displayedPlans.map(p => (
               <div
                 key={p.id}
                 onClick={() => openView(p)}
@@ -405,7 +423,7 @@ export default function DietPlansPanel({ toast, user }) {
         <div className="flex justify-between items-center mb-6 bg-surface p-5 rounded-2xl border border-border shrink-0">
           <div>
             <button
-              onClick={() => { setView("list"); setViewingPlan(null); }}
+              onClick={() => { handleExit(); setViewingPlan(null); }}
               className="flex items-center gap-1.5 text-sm font-semibold border-0 bg-transparent cursor-pointer mb-2"
               style={{ color: 'var(--color-text-muted)' }}
             >
@@ -497,7 +515,7 @@ export default function DietPlansPanel({ toast, user }) {
           />
         </div>
         <div className="flex gap-2 mb-1">
-          <Btn variant="secondary" onClick={() => { setView("list"); setEditingPlanId(null); }}>Cancel</Btn>
+          <Btn variant="secondary" onClick={() => { handleExit(); setEditingPlanId(null); }}>Cancel</Btn>
           <Btn onClick={savePlan} disabled={saving}>
             {saving ? "Saving..." : editingPlanId ? "Save changes ✓" : "Save ✓"}
           </Btn>

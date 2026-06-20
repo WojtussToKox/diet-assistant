@@ -74,6 +74,38 @@ class DietPlanViewSet(MixedSerializerMixin, viewsets.ModelViewSet):
         except Exception as e:
             return Response({"detail": f"Analytics error: {str(e)}"}, status=400)
 
+    @action(detail=True, methods=['post'])
+    def assign_to_patient(self, request, pk=None):
+        original_plan = self.get_object()
+        patient_id = request.data.get('patient')
+
+        if not patient_id:
+            return Response({'detail': 'Patient ID is required.'}, status=400)
+
+        DietPlan.objects.filter(patient_id=patient_id, dietitian=request.user).delete()
+
+        new_plan = DietPlan.objects.create(
+            name=f"{original_plan.name}",
+            patient_id=patient_id,
+            dietitian=request.user,
+            daily_calories_goal=original_plan.daily_calories_goal
+        )
+
+        for menu in original_plan.daily_menus.all():
+            new_menu = DailyMenu.objects.create(
+                diet_plan=new_plan,
+                day_of_week=menu.day_of_week
+            )
+            for meal in menu.meals.all():
+                ScheduledMeal.objects.create(
+                    daily_menu=new_menu,
+                    meal_type=meal.meal_type,
+                    recipe=meal.recipe,
+                    product=meal.product,
+                    weight_in_grams=meal.weight_in_grams
+                )
+
+        return Response({'detail': 'Plan assigned successfully!', 'new_plan_id': new_plan.id})
 
 class DietPlanExportView(APIView):
     permission_classes = [IsAuthenticated]
