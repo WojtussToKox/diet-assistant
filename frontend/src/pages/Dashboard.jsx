@@ -52,7 +52,13 @@ export default function Dashboard({ user, toast }) {
   const [tab, setTab] = useState("recipes");
 
   const patientPlans = plans.filter(p => p.patient === user?.id);
-  const myPlan = patientPlans.length > 0 ? patientPlans[patientPlans.length - 1] : null;
+
+  let myPlan = null;
+  if (patientPlans.length > 0) {
+    const savedId = Number(localStorage.getItem('activePlanId'));
+    myPlan = patientPlans.find(p => p.id === savedId) || patientPlans[patientPlans.length - 1];
+  }
+
   const hasPlan = !!myPlan;
 
   const targetMenu = hasPlan ? dailyMenus.find(m => m.diet_plan === myPlan.id && m.day_of_week === currentDayId) : null;

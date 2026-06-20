@@ -39,6 +39,7 @@ export default function DietPlansPanel({ toast, user, targetPlanId, setTargetPla
   const [loadingPlanDetail, setLoadingPlanDetail] = useState(false);
   const [viewingPlan, setViewingPlan] = useState(null); // dane planu w trybie podglądu
   const [analytics, setAnalytics] = useState(null);
+  const [activePlanId, setActivePlanId] = useState(() => {const saved = localStorage.getItem('activePlanId');return saved ? Number(saved) : null;});
   const role = user?.role;
   const isDietitian = role === "DIETITIAN";
 
@@ -339,7 +340,11 @@ export default function DietPlansPanel({ toast, user, targetPlanId, setTargetPla
           <EmptyState icon="📅" title="No plans yet" sub="Create your first one now." />
         ) : (
           <div className="grid gap-3">
-            {displayedPlans.map(p => (
+            {displayedPlans.map(p => {
+              const isDefaultActive = !activePlanId && p.id === displayedPlans[displayedPlans.length - 1]?.id;
+              const isActive = activePlanId === p.id || isDefaultActive;
+
+              return (
               <div
                 key={p.id}
                 onClick={() => openView(p)}
@@ -361,6 +366,20 @@ export default function DietPlansPanel({ toast, user, targetPlanId, setTargetPla
                 </div>
 
                 <div className="flex gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                  {!isDietitian && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActivePlanId(p.id);
+                        localStorage.setItem('activePlanId', p.id);
+                        toast("Diet plan activated!", "success");
+                      }}
+                      disabled={isActive}
+                      className={`h-9 px-3 rounded-xl flex items-center justify-center border transition-colors text-sm font-semibold ${isActive ? 'bg-accent-xlight border-accent/30 text-accent cursor-default' : 'bg-background border-border text-text-muted hover:border-accent cursor-pointer'}`}
+                    >
+                      {isActive ? "✓ Active" : "Activate"}
+                    </button>
+                  )}
                   <button
                     onClick={() => handleExportShoppingList(p.id)}
                     title="Download shopping list"
@@ -408,8 +427,9 @@ export default function DietPlansPanel({ toast, user, targetPlanId, setTargetPla
                     </>
                   )}
                 </div>
-              </div>
-            ))}
+             </div>
+              );
+            })}
           </div>
         )}
       </div>
