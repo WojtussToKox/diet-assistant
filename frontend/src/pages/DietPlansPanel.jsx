@@ -38,6 +38,7 @@ export default function DietPlansPanel({ toast, user }) {
   const [editingPlanId, setEditingPlanId] = useState(null); // null = tworzenie nowego, number = edycja istniejącego
   const [loadingPlanDetail, setLoadingPlanDetail] = useState(false);
   const [viewingPlan, setViewingPlan] = useState(null); // dane planu w trybie podglądu
+  const [analytics, setAnalytics] = useState(null);
   const role = user?.role;
   const isDietitian = role === "DIETITIAN";
 
@@ -45,6 +46,7 @@ export default function DietPlansPanel({ toast, user }) {
     setEditingPlanId(null);
     setForm({ name: "New plan", daily_calories_goal: "2000" });
     setBoardMeals([]);
+    setAnalytics(null);
     setView("builder");
   };
 
@@ -77,12 +79,16 @@ export default function DietPlansPanel({ toast, user }) {
     try {
       const detail = await apiFetch(`/diet-plans/${plan.id}/`);
 
+      try {
+        const stats = await apiFetch(`/diet-plans/${plan.id}/analytics/`);
+        setAnalytics(stats);
+      } catch(e) { setAnalytics(null); }
+
       setEditingPlanId(plan.id);
       setForm({
         name: detail.name,
         daily_calories_goal: String(detail.daily_calories_goal),
       });
-
       setBoardMeals(loadPlanMeals(detail));
       setView("builder");
     } catch (e) {
@@ -92,11 +98,15 @@ export default function DietPlansPanel({ toast, user }) {
     }
   };
 
-  // Otwiera plan w trybie tylko do odczytu — bez drag&drop, bez edycji
   const openView = async (plan) => {
     setLoadingPlanDetail(true);
     try {
       const detail = await apiFetch(`/diet-plans/${plan.id}/`);
+
+      try {
+        const stats = await apiFetch(`/diet-plans/${plan.id}/analytics/`);
+        setAnalytics(stats);
+      } catch(e) { setAnalytics(null); }
 
       setViewingPlan({
         name: detail.name,
@@ -245,6 +255,53 @@ export default function DietPlansPanel({ toast, user }) {
     }
   };
 
+  // --- FUNKCJA RENDERUJĄCA WYNIKI Z PANDAS ---
+  const renderAnalytics = () => {
+    if (!analytics || !analytics.averages) return null;
+    return (
+      <div className="mb-6 p-5 bg-surface border border-border rounded-2xl shadow-sm shrink-0">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-xl">📊</span>
+          <h3 className="m-0 text-sm font-bold uppercase tracking-widest text-text-muted">Plan Analysis</h3>
+        </div>
+
+        <div className="flex gap-4 w-full mb-4">
+          <div className="flex-1 p-3 bg-background border border-border rounded-xl text-center">
+            <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-text-muted">Avg Kcal</div>
+            <div className="text-xl font-black text-text">{analytics.averages.avg_calories}</div>
+          </div>
+          <div className="flex-1 p-3 bg-background border border-border rounded-xl text-center">
+            <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-text-muted">Avg Protein</div>
+            <div className="text-xl font-black text-accent">{analytics.averages.avg_protein}g</div>
+          </div>
+          <div className="flex-1 p-3 bg-background border border-border rounded-xl text-center">
+            <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-text-muted">Avg Fat</div>
+            <div className="text-xl font-black text-accent">{analytics.averages.avg_fat}g</div>
+          </div>
+          <div className="flex-1 p-3 bg-background border border-border rounded-xl text-center">
+            <div className="text-[10px] font-bold uppercase tracking-wider mb-1 text-text-muted">Avg Carbs</div>
+            <div className="text-xl font-black text-accent">{analytics.averages.avg_carbs}g</div>
+          </div>
+        </div>
+
+        {/* Sekcja wyłapanych odchyleń przez Pandas */}
+        {analytics.deviations && analytics.deviations.length > 0 && (
+          <div className="p-4 bg-danger-light border border-danger/30 rounded-xl text-sm text-danger shadow-sm">
+            <span className="font-bold flex items-center gap-1">⚠️ Wykryto odchylenia kaloryczne (&gt;20%):</span>
+            <ul className="mt-2 ml-5 list-disc mb-0 font-medium">
+              {analytics.deviations.map((d, idx) => (
+                <li key={idx} className="mb-1">
+                  Dzień {d.day_number}: <span className="font-bold">{d.calories} kcal</span> (Cel: {d.goal} kcal) —
+                  odchylenie o {Math.abs(d.deviation_pct)}% ({d.status === 'OVER' ? 'Przekroczenie' : 'Niedobór'})
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ---------- WIDOK LISTY ----------
   if (view === "list") {
     return (
@@ -364,6 +421,8 @@ export default function DietPlansPanel({ toast, user }) {
           </div>
         </div>
 
+        {renderAnalytics()}
+
         <div className="flex-1 overflow-x-auto overflow-y-auto pb-4">
           <div className="flex gap-4 w-max">
             {DAYS.map(day => {
@@ -444,6 +503,8 @@ export default function DietPlansPanel({ toast, user }) {
           </Btn>
         </div>
       </div>
+
+      {renderAnalytics()}
 
       <div className="flex gap-6 flex-1 min-h-0">
         <div className="w-72 flex flex-col bg-surface border border-border rounded-2xl overflow-hidden shrink-0">

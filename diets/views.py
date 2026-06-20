@@ -8,7 +8,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .models import Recipe, DietPlan, DailyMenu, ScheduledMeal, MealLog
 from django.http import HttpResponse
 import csv
-from diets.services import DietPlanExportService
+from rest_framework.decorators import action
+from diets.services import DietPlanExportService, DietAnalyticsService
 from .serializers import (
     RecipeListSerializer,
     RecipeDetailSerializer,
@@ -52,6 +53,24 @@ class DietPlanViewSet(MixedSerializerMixin, viewsets.ModelViewSet):
         elif user.role in ['PATIENT', 'STANDARD']:
             return base_qs.filter(patient=user)
         return base_qs.none()
+
+    @action(detail=True, methods=['get'], url_path='analytics')
+    def analytics(self, request, pk=None):
+        plan = self.get_object()
+        try:
+            analytics_service = DietAnalyticsService(plan)
+            return Response({
+                "averages": analytics_service.get_daily_averages(),
+                "deviations": analytics_service.detect_calories_deviations()
+            })
+        except ValueError as e:
+            return Response({
+                "averages": None,
+                "deviations": [],
+                "message": str(e)
+            })
+        except Exception as e:
+            return Response({"detail": f"Analytics error: {str(e)}"}, status=400)
 
 
 class DietPlanExportView(APIView):
