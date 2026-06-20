@@ -1,6 +1,6 @@
 from rest_framework import serializers
-from .models import Recipe, RecipeIngredient, DietPlan, DailyMenu, ScheduledMeal
-
+from .models import Recipe, RecipeIngredient, DietPlan, DailyMenu, ScheduledMeal, MealLog
+from .services import DietCalculatorService
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
@@ -12,14 +12,20 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 
 
 class RecipeListSerializer(serializers.ModelSerializer):
+    total_calories = serializers.SerializerMethodField()
+    author = serializers.PrimaryKeyRelatedField(read_only=True)
+
     class Meta:
         model = Recipe
-        fields = ['id', 'name', 'description']
+        fields = ['id', 'name', 'author', 'description', 'total_calories']
+    def get_total_calories(self, obj):
+        macros = DietCalculatorService.calculate_recipe(obj)
+        return float(macros['calories'])
 
 
 class RecipeDetailSerializer(serializers.ModelSerializer):
     ingredients = RecipeIngredientSerializer(source='recipeingredient_set', many=True)
-    author = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    author = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Recipe
@@ -82,17 +88,30 @@ class DailyMenuDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DailyMenu
-        fields = ['id', 'diet_plan', 'day_number', 'meals']
+        fields = ['id', 'diet_plan', 'day_of_week', 'meals']
 
 
 class DietPlanListSerializer(serializers.ModelSerializer):
     dietitian = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    dietitian_name = serializers.SerializerMethodField()
 
     class Meta:
         model = DietPlan
-        fields = ['id', 'name', 'patient', 'dietitian', 'start_date', 'end_date', 'daily_calories_goal']
+        fields = ['id', 'name', 'patient', 'dietitian', 'dietitian_name', 'daily_calories_goal']
+        extra_kwargs = {
+            'daily_calories_goal': {'required': False},
+            'name': {'required': False},
+        }
+
+    def get_dietitian_name(self, obj):
+        if not obj.dietitian:
+            return None
+        return obj.dietitian.first_name or obj.dietitian.username
 
     def validate_patient(self, value):
+        if value is None:
+            return value
+            
         user = self.context['request'].user
         
         if user.role == 'DIETITIAN':
@@ -113,8 +132,22 @@ class DietPlanListSerializer(serializers.ModelSerializer):
 
 class DietPlanDetailSerializer(serializers.ModelSerializer):
     dietitian = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    dietitian_name = serializers.SerializerMethodField()
     daily_menus = DailyMenuDetailSerializer(many=True, read_only=True)
 
     class Meta:
         model = DietPlan
-        fields = ['id', 'name', 'patient', 'dietitian', 'start_date', 'end_date', 'daily_calories_goal', 'daily_menus']
+        fields = ['id', 'name', 'patient', 'dietitian', 'dietitian_name',
+                  'daily_calories_goal', 'daily_menus']
+
+    def get_dietitian_name(self, obj):
+        if not obj.dietitian:
+            return None
+        return obj.dietitian.first_name or obj.dietitian.username
+    
+class MealLogSerializer(serializers.ModelSerializer):
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    class Meta:
+        model = MealLog
+        fields = '__all__'
