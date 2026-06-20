@@ -77,7 +77,7 @@ class DietitianListView(APIView):
 class DietitianRequestViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = DietitianRequestSerializer
-    http_method_names = ['get', 'post', 'head', 'options']
+    http_method_names = ['get', 'post', 'head', 'options', 'delete']
 
     def get_queryset(self):
         user = self.request.user
