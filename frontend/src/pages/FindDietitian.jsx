@@ -112,7 +112,7 @@ export default function FindDietitian({ toast }) {
                         {filtered.map(d => {
                             const initials = (d.first_name || d.username).slice(0, 2).toUpperCase();
 
-                            // Szukamy, czy użytkownik wysłał już zapytanie do tego konkretnego dietetyka
+                            // We are looking to see if the user has already sent an inquiry to this specific dietitian
                             const userRequest = requests.find(r => r.dietitian === d.id);
 
                             return (
@@ -132,7 +132,7 @@ export default function FindDietitian({ toast }) {
                                         </div>
                                     </div>
 
-                                    {/* Wyświetlamy status lub przycisk otwierający Modal na podstawie statusu zapytania */}
+                                    {/* We display the status or Modal opening button based on the query status */}
                                     <div>
                                         {userRequest?.status === 'ACCEPTED' ? (
                                             <span className="text-sm px-3 py-1.5 rounded-lg font-semibold" style={{ background: 'var(--color-accent-xlight)', color: 'var(--color-accent)' }}>

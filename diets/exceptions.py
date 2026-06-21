@@ -9,8 +9,7 @@ class DataAggregationError(DietServiceError):
 
 
 class FileExportError(DietServiceError):
-    """
-    Raised when writing an export file (JSON/CSV) fails at the OS level."""
+    """Raised when writing an export file (JSON/CSV) fails at the OS level."""
     pass
 
 

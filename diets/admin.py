@@ -13,12 +13,10 @@ class RecipeAdmin(admin.ModelAdmin):
 class DailyMenuInline(admin.TabularInline):
     model = DailyMenu
     extra = 7
-    # CHANGED: 'day_number' to 'day_of_week'
     fields = ['day_of_week']
 
 @admin.register(DietPlan)
 class DietPlanAdmin(admin.ModelAdmin):
-    # CHANGED: Removed 'start_date' and 'end_date', added 'daily_calories_goal'
     list_display = ['name', 'patient', 'dietitian', 'daily_calories_goal']
     inlines = [DailyMenuInline]
     exclude = ['dietitian']
@@ -36,7 +34,6 @@ class ScheduledMealInline(admin.TabularInline):
 
 @admin.register(DailyMenu)
 class DailyMenuAdmin(admin.ModelAdmin):
-    # CHANGED: 'day_number' to 'day_of_week'
     list_display = ['__str__', 'diet_plan', 'day_of_week']
     list_filter = ['diet_plan']
     inlines = [ScheduledMealInline]

@@ -77,7 +77,7 @@ export default function RecipesPanel({ user, toast }) {
 
   const productOptions = (products || []).map(p => ({ value: String(p.id), label: p.name }));
 
-  console.log("=== DEBUG ===", { user_w_panelu: user, pierwszy_przepis: recipes[0] });
+  console.log("=== DEBUG ===", { user_in_panelu: user, first_recipe: recipes[0] });
   return (
     <div className="pb-16 animate-fadeUp">
       <div className="flex items-center justify-between mb-8">

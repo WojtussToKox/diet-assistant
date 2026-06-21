@@ -20,7 +20,7 @@ export default function Login({ onLoginSuccess, onSwitchToRegister }) {
                 body: JSON.stringify({ username, password }),
             });
 
-            if (!response.ok) throw new Error("Nieprawidłowy login lub hasło.");
+            if (!response.ok) throw new Error("Incorrect login or password.");
 
             const data = await response.json();
             localStorage.setItem("access_token", data.access);

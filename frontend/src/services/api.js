@@ -16,13 +16,12 @@ export async function apiFetch(path, opts = {}) {
     headers,
   });
 
-  // Obsługa błędów (np. 400, 401, 500)
+  // Error handling (e.g. 400, 401, 500)
   if (!res.ok) {
     if (res.status === 401) {
-      console.warn("Brak autoryzacji lub token wygasł.");
+      console.warn("No authorization or token expired.");
     }
 
-    // Pobieramy błąd jako tekst (bezpieczniejsze przy błędach z serwera np. stronach HTML)
     const errText = await res.text();
     let err = {};
     try {
@@ -34,23 +33,20 @@ export async function apiFetch(path, opts = {}) {
     throw Object.assign(new Error(res.statusText || `HTTP Error ${res.status}`), { status: res.status, data: err });
   }
 
-  // 204 No Content (zazwyczaj przy DELETE)
+  // 204 No Content 
   if (res.status === 204) return null;
 
-  // --- KRYTYCZNA POPRAWKA PONIŻEJ ---
-  // Odczytujemy odpowiedź jako czysty tekst. 
-  // Zapobiega to błędowi "Unexpected end of JSON input" w przypadku pustej odpowiedzi (np. przy POST)
   const text = await res.text();
 
   try {
     return text ? JSON.parse(text) : null;
   } catch (error) {
-    console.warn("Serwer zwrócił sukces, ale odpowiedź nie jest poprawnym JSON-em:", text);
+    console.warn("The server returned success, but the response is not valid JSON:", text);
     return null;
   }
 }
 
-// Opcja importu produktów z pliku CSV
+// Option to import products from a CSV file
 export const importProductsCsv = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
@@ -79,7 +75,7 @@ export const importProductsCsv = async (file) => {
   return res.json();
 };
 
-// Opcja eksportu listy zakupów
+// Shopping list export option
 export const exportShoppingListCsv = async (planId) => {
     const token = localStorage.getItem("access_token");
 const res = await fetch(`${API_BASE}/diet-plans/${planId}/export-shopping-list/`, {        method: "GET",

@@ -177,11 +177,11 @@ class ScheduledMealViewSet(viewsets.ModelViewSet):
         return base_qs.none()
 
 class DietPlanBuilderView(APIView):
-    """Wspólna logika tworzenia i edycji szablonu planu diety (drag&drop builder)."""
+    """Common logic for creating and editing a diet plan template (drag&drop builder)."""
     permission_classes = [IsAuthenticated]
 
     def _validate_payload(self, data):
-        """Sprawdza podstawowe pola i zwraca (name, daily_calories_goal) albo rzuca ValueError."""
+        """Checks basic fields and returns (name, daily_calories_goal) or throws ValueError."""
         name = data.get('name')
         daily_calories_goal = data.get('daily_calories_goal')
 
@@ -193,7 +193,7 @@ class DietPlanBuilderView(APIView):
         return name, daily_calories_goal
 
     def _save_days(self, plan, days_data):
-        """Tworzy DailyMenu + ScheduledMeal dla podanego planu. Zakłada że stare dni już usunięto (przy edycji)."""
+        """Creates a DailyMenu + ScheduledMeal for the given schedule. Assumes that old days have already been deleted (when editing)."""
         for day_data in days_data:
             day_of_week = day_data.get('day_of_week')
             if day_of_week is None:
@@ -222,7 +222,7 @@ class DietPlanBuilderView(APIView):
                 )
 
     def post(self, request):
-        """Tworzenie nowego szablonu planu diety."""
+        """Creating a new diet plan template."""
         data = request.data
         user = request.user
 
@@ -243,17 +243,17 @@ class DietPlanBuilderView(APIView):
                 )
                 self._save_days(plan, data.get('days', []))
 
-            return Response({"detail": "Plan został zapisany!", "plan_id": plan.id}, status=201)
+            return Response({"detail": "The plan has been saved!", "plan_id": plan.id}, status=201)
 
         except ValueError as e:
             return Response({"detail": str(e)}, status=400)
         except Exception as e:
             import logging
-            logging.exception("Błąd przy tworzeniu planu diety")
-            return Response({"detail": f"Wewnętrzny błąd: {str(e)}"}, status=500)
+            logging.exception("Error in creating a diet plan")
+            return Response({"detail": f"Internal error: {str(e)}"}, status=500)
 
     def put(self, request, plan_id=None):
-        """Edycja istniejącego szablonu planu diety."""
+        """Editing an existing diet plan template."""
         data = request.data
         user = request.user
 
@@ -275,14 +275,14 @@ class DietPlanBuilderView(APIView):
                 plan.daily_menus.all().delete()  # usuń stare dni, zbuduj od nowa
                 self._save_days(plan, data.get('days', []))
 
-            return Response({"detail": "Plan zaktualizowany!", "plan_id": plan.id}, status=200)
+            return Response({"detail": "Plan updated!", "plan_id": plan.id}, status=200)
 
         except ValueError as e:
             return Response({"detail": str(e)}, status=400)
         except Exception as e:
             import logging
-            logging.exception("Błąd przy edycji planu diety")
-            return Response({"detail": f"Wewnętrzny błąd: {str(e)}"}, status=500)
+            logging.exception("Error while editing diet plan")
+            return Response({"detail": f"Internal error: {str(e)}"}, status=500)
         
 class MealLogViewSet(viewsets.ModelViewSet):
     serializer_class = MealLogSerializer

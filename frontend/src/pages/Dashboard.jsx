@@ -256,7 +256,7 @@ export default function Dashboard({ user, toast }) {
         </div>
       </div>
 
-      {/* SCENARIO A: Has assigned plan */}
+      {/*Has assigned plan */}
       {hasPlan ? (
         <div>
           <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>
@@ -294,7 +294,7 @@ export default function Dashboard({ user, toast }) {
                   </div>
 
                   <div className="grid gap-2">
-                    {/* 1. ZAPLANOWANE POSIŁKI */}
+                    {/* 1. PLANNED MEALS */}
                     {mealsForThisType.map(meal => {
                       const matchingLog = logs.find(l =>
                         l.meal_type === meal.meal_type &&
@@ -321,7 +321,7 @@ export default function Dashboard({ user, toast }) {
                       )
                     })}
 
-                    {/* 2. NADPROGRAMOWE POSIŁKI (SPOZA DIETY) */}
+                    {/* 2. EXTRA MEALS (NOT WITHIN DIET) */}
                     {extraLogsForThisType.map(log => (
                       <div key={log.id} className="flex justify-between items-center p-4 rounded-xl bg-background border border-border">
                         <div className="flex items-center gap-4">
@@ -340,7 +340,7 @@ export default function Dashboard({ user, toast }) {
                       </div>
                     ))}
 
-                    {/* 3. BRAK POSIŁKÓW */}
+                    {/* 3. NO MEALS */}
                     {mealsForThisType.length === 0 && extraLogsForThisType.length === 0 && (
                       <div className="text-xs text-text-muted mt-1 mb-1">No meals planned or logged.</div>
                     )}
@@ -351,7 +351,7 @@ export default function Dashboard({ user, toast }) {
           </div>
         </div>
       ) : (
-        // SCENARIO B: Brak przypisanej diety
+        // NO ASSIGNED DIET
         <div>
           <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>
             {isToday ? "Logged Today" : `Logged on ${dayName}`}

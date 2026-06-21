@@ -1,11 +1,11 @@
-/* Importujemy czcionkę Inter, o którą prosi Twój nowy kod */
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* TWOJE GŁÓWNE ZMIENNE CSS (Jasny motyw) */
+
 :root {
   --color-background: #F7F9F8;
   --color-surface: #FFFFFF;
@@ -25,7 +25,7 @@
   --color-macro-fat: #F59E0B;
 }
 
-/* PODSTAWA POD TRYB CIEMNY (Współgra z ThemeContext w App.jsx) */
+
 .dark {
   --color-background: #0A0A0F;
   --color-surface: #16162A;
