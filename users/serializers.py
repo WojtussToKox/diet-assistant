@@ -11,13 +11,24 @@ class UserMeSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'role',
-                  'is_staff', 'dietitian', 'height_cm', 'weight_kg']
+                  'is_staff', 'dietitian', 'height_cm', 'weight_kg', 'active_plan']
+
+    def validate_active_plan(self, value):
+        if value is None:
+            return value
+
+        if value.patient != self.instance:
+            raise serializers.ValidationError("You cannot assign a plan that does not belong to you.")
+
+        return value
+
     def get_daily_caloric_needs(self, obj):
         age = 30
         if hasattr(obj, 'date_of_birth') and obj.date_of_birth:
             from datetime import date
             today = date.today()
             age = today.year - obj.date_of_birth.year - ((today.month, today.day) < (obj.date_of_birth.month, obj.date_of_birth.day))
+
 
         return DietCalculatorService.calculate_daily_caloric_needs(
             weight_kg=obj.weight_kg,

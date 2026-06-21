@@ -203,7 +203,7 @@ export default function App() {
                 {page === "dashboard" && <Dashboard user={user} />}
                 {page === "products" && <ProductsPanel toast={showToast} user={user} />}
                 {page === "recipes" && <RecipesPanel toast={showToast} user={user} />}
-                {page === "diet-plans" && <DietPlansPanel toast={showToast} user={user} targetPlanId={targetPlanId} setTargetPlanId={setTargetPlanId} returnPage={returnPage} onReturn={() => { setPage(returnPage); setReturnPage(null);}}/>}
+                {page === "diet-plans" && <DietPlansPanel toast={showToast} user={user} setUser={setUser} targetPlanId={targetPlanId} setTargetPlanId={setTargetPlanId} returnPage={returnPage} onReturn={() => { setPage(returnPage); setReturnPage(null);}}/>}
                 {page === "patients" && <DietitianDashboard user={user} toast={showToast} onCustomizePlan={handleCustomizePlan} />}
                 {page === "find-dietitian" && <FindDietitian toast={showToast} />}
                 {page === "settings" && <SettingsPanel user={user} setUser={setUser} toast={showToast} onLogout={handleLogout} />}

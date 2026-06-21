@@ -61,6 +61,14 @@ class User(AbstractUser):
         verbose_name="Weight (kg)"
     )
 
+    active_plan = models.ForeignKey(
+        'diets.DietPlan',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='+'
+    )
+
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"
     

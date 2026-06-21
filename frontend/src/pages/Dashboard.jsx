@@ -55,8 +55,14 @@ export default function Dashboard({ user, toast }) {
 
   let myPlan = null;
   if (patientPlans.length > 0) {
-    const savedId = Number(localStorage.getItem('activePlanId'));
-    myPlan = patientPlans.find(p => p.id === savedId) || patientPlans[patientPlans.length - 1];
+    if (user?.active_plan) {
+      const planId = typeof user.active_plan === 'object' ? user.active_plan.id : user.active_plan;
+      myPlan = patientPlans.find(p => p.id === planId);
+    }
+
+    if (!myPlan) {
+      myPlan = patientPlans[patientPlans.length - 1];
+    }
   }
 
   const hasPlan = !!myPlan;

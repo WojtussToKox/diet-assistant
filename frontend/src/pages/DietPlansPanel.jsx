@@ -22,7 +22,7 @@ const MEALS = [
   { id: "SUPPER", name: "SUPPER", icon: "🌙" },
 ];
 
-export default function DietPlansPanel({ toast, user, targetPlanId, setTargetPlanId, returnPage, onReturn }) {
+export default function DietPlansPanel({ toast, user, setUser, targetPlanId, setTargetPlanId, returnPage, onReturn }) {
   const { data: plans, loading: loadingPlans, reload: reloadPlans } = useList("/diet-plans/");
   const { data: recipes } = useList("/recipes/");
   const { data: products } = useList("/products/");
@@ -39,7 +39,6 @@ export default function DietPlansPanel({ toast, user, targetPlanId, setTargetPla
   const [loadingPlanDetail, setLoadingPlanDetail] = useState(false);
   const [viewingPlan, setViewingPlan] = useState(null); // dane planu w trybie podglądu
   const [analytics, setAnalytics] = useState(null);
-  const [activePlanId, setActivePlanId] = useState(() => {const saved = localStorage.getItem('activePlanId');return saved ? Number(saved) : null;});
   const role = user?.role;
   const isDietitian = role === "DIETITIAN";
 
@@ -341,8 +340,10 @@ export default function DietPlansPanel({ toast, user, targetPlanId, setTargetPla
         ) : (
           <div className="grid gap-3">
             {displayedPlans.map(p => {
-              const isDefaultActive = !activePlanId && p.id === displayedPlans[displayedPlans.length - 1]?.id;
-              const isActive = activePlanId === p.id || isDefaultActive;
+              const savedPlanId = typeof user?.active_plan === 'object' ? user.active_plan?.id : user?.active_plan;
+
+              const isDefaultActive = !savedPlanId && p.id === displayedPlans[displayedPlans.length - 1]?.id;
+              const isActive = savedPlanId === p.id || isDefaultActive;
 
               return (
               <div
@@ -367,19 +368,26 @@ export default function DietPlansPanel({ toast, user, targetPlanId, setTargetPla
 
                 <div className="flex gap-2 shrink-0" onClick={e => e.stopPropagation()}>
                   {!isDietitian && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActivePlanId(p.id);
-                        localStorage.setItem('activePlanId', p.id);
-                        toast("Diet plan activated!", "success");
-                      }}
-                      disabled={isActive}
-                      className={`h-9 px-3 rounded-xl flex items-center justify-center border transition-colors text-sm font-semibold ${isActive ? 'bg-accent-xlight border-accent/30 text-accent cursor-default' : 'bg-background border-border text-text-muted hover:border-accent cursor-pointer'}`}
-                    >
-                      {isActive ? "✓ Active" : "Activate"}
-                    </button>
-                  )}
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const updatedUser = await apiFetch("/users/me/", {
+                              method: "PATCH",
+                              body: JSON.stringify({ active_plan: p.id })
+                            });
+                            setUser(updatedUser);
+                            toast("Diet plan activated!", "success");
+                          } catch (err) {
+                            toast("Error activating plan: " + err.message, "error");
+                          }
+                        }}
+                        disabled={isActive}
+                        className={`h-9 px-3 rounded-xl flex items-center justify-center border transition-colors text-sm font-semibold ${isActive ? 'bg-accent-xlight border-accent/30 text-accent cursor-default' : 'bg-background border-border text-text-muted hover:border-accent cursor-pointer'}`}
+                      >
+                        {isActive ? "✓ Active" : "Activate"}
+                      </button>
+                    )}
                   <button
                     onClick={() => handleExportShoppingList(p.id)}
                     title="Download shopping list"
