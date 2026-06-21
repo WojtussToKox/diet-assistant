@@ -306,12 +306,12 @@ export default function DietPlansPanel({ toast, user, targetPlanId, setTargetPla
         {/* Sekcja wyłapanych odchyleń przez Pandas */}
         {analytics.deviations && analytics.deviations.length > 0 && (
           <div className="p-4 bg-danger-light border border-danger/30 rounded-xl text-sm text-danger shadow-sm">
-            <span className="font-bold flex items-center gap-1">⚠️ Wykryto odchylenia kaloryczne (&gt;20%):</span>
+            <span className="font-bold flex items-center gap-1">⚠️ Calorie deviations detected (&gt;20%):</span>
             <ul className="mt-2 ml-5 list-disc mb-0 font-medium">
               {analytics.deviations.map((d, idx) => (
                 <li key={idx} className="mb-1">
-                  Dzień {d.day_number}: <span className="font-bold">{d.calories} kcal</span> (Cel: {d.goal} kcal) —
-                  odchylenie o {Math.abs(d.deviation_pct)}% ({d.status === 'OVER' ? 'Przekroczenie' : 'Niedobór'})
+                  Day {d.day_number}: <span className="font-bold">{d.calories} kcal</span> (Goal: {d.goal} kcal) —
+                  deviation of {Math.abs(d.deviation_pct)}% ({d.status === 'OVER' ? 'Surplus' : 'Deficit'})
                 </li>
               ))}
             </ul>
