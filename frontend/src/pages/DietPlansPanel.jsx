@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useList } from "../hooks/useList";
 import { Button as Btn } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -22,12 +22,12 @@ const MEALS = [
   { id: "SUPPER", name: "SUPPER", icon: "🌙" },
 ];
 
-export default function DietPlansPanel({ toast, user }) {
+export default function DietPlansPanel({ toast, user, setUser, targetPlanId, setTargetPlanId, returnPage, onReturn }) {
   const { data: plans, loading: loadingPlans, reload: reloadPlans } = useList("/diet-plans/");
   const { data: recipes } = useList("/recipes/");
   const { data: products } = useList("/products/");
 
-  // view: "list" | "builder" (edycja/dietetyk) | "view-readonly" (podgląd dla pacjenta)
+  // view: "list" | "builder" (edition/dietitian) | "view-readonly" (patient view)
   const [view, setView] = useState("list");
   const [form, setForm] = useState({ name: "", daily_calories_goal: "2000" });
   const [boardMeals, setBoardMeals] = useState([]);
@@ -35,9 +35,9 @@ export default function DietPlansPanel({ toast, user }) {
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  const [editingPlanId, setEditingPlanId] = useState(null); // null = tworzenie nowego, number = edycja istniejącego
+  const [editingPlanId, setEditingPlanId] = useState(null);
   const [loadingPlanDetail, setLoadingPlanDetail] = useState(false);
-  const [viewingPlan, setViewingPlan] = useState(null); // dane planu w trybie podglądu
+  const [viewingPlan, setViewingPlan] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const role = user?.role;
   const isDietitian = role === "DIETITIAN";
@@ -50,7 +50,7 @@ export default function DietPlansPanel({ toast, user }) {
     setView("builder");
   };
 
-  // Wspólna funkcja do ładowania szczegółów planu (używana zarówno przy edycji jak i podglądzie)
+  // Common function for loading plan details (used for both editing and viewing)
   const loadPlanMeals = (detail) => {
     const loadedMeals = [];
     (detail.daily_menus || []).forEach(menu => {
@@ -92,9 +92,27 @@ export default function DietPlansPanel({ toast, user }) {
       setBoardMeals(loadPlanMeals(detail));
       setView("builder");
     } catch (e) {
-      toast("Błąd ładowania planu: " + e.message, "error");
+      toast("Error loading plan: " + e.message, "error");
     } finally {
       setLoadingPlanDetail(false);
+    }
+  };
+
+  useEffect(() => {
+    if (targetPlanId && plans.length > 0) {
+      const planToOpen = plans.find(p => p.id === targetPlanId);
+      if (planToOpen) {
+        openEdit(planToOpen);
+        setTargetPlanId(null);
+      }
+    }
+  }, [targetPlanId, plans]);
+
+  const handleExit = () => {
+    if (returnPage) {
+      onReturn();
+    } else {
+      setView("list");
     }
   };
 
@@ -116,22 +134,22 @@ export default function DietPlansPanel({ toast, user }) {
       setBoardMeals(loadPlanMeals(detail));
       setView("view-readonly");
     } catch (e) {
-      toast("Błąd ładowania planu: " + e.message, "error");
+      toast("Error loading plan: " + e.message, "error");
     } finally {
       setLoadingPlanDetail(false);
     }
   };
 
   const removePlan = async (planId) => {
-    if (!window.confirm("Usunąć ten szablon planu diety? Tej operacji nie można odwrócić.")) return;
+    if (!window.confirm("Delete this diet plan template? This operation cannot be reversed.")) return;
 
     setDeletingId(planId);
     try {
       await apiFetch(`/diet-plans/${planId}/`, { method: "DELETE" });
-      toast("Szablon usunięty", "success");
+      toast("Template removed", "success");
       reloadPlans();
     } catch (e) {
-      toast("Błąd usuwania: " + e.message, "error");
+      toast("Delete error: " + e.message, "error");
     } finally {
       setDeletingId(null);
     }
@@ -166,7 +184,7 @@ export default function DietPlansPanel({ toast, user }) {
     if (parsed.source === 'sidebar') {
       let weight = null;
       if (!parsed.isRecipe) {
-        weight = prompt(`Podaj wagę dla: ${parsed.name} (w gramach):`, "100");
+        weight = prompt(`Enter the weight for: ${parsed.name} (in grams):`, "100");
         if (!weight || isNaN(weight)) return;
       }
 
@@ -182,7 +200,7 @@ export default function DietPlansPanel({ toast, user }) {
 
   const removeMeal = (uuid) => setBoardMeals(prev => prev.filter(m => m.uuid !== uuid));
 
-  // Funkcja licząca kalorie dla konkretnego dnia
+  // A function that counts calories for a specific day
   const getDayCalories = (dayId) => {
     const dayMeals = boardMeals.filter(m => m.dayId === dayId);
     let total = 0;
@@ -203,7 +221,7 @@ export default function DietPlansPanel({ toast, user }) {
 
   const savePlan = async () => {
     if (!form.name || !form.daily_calories_goal) {
-      toast("Wypełnij nazwę i cel kalorii", "error");
+      toast("Fill in the name and calorie goal", "error");
       return;
     }
 
@@ -236,17 +254,17 @@ export default function DietPlansPanel({ toast, user }) {
           method: "PUT",
           body: JSON.stringify(payload)
         });
-        toast("Szablon planu został zaktualizowany!", "success");
+        toast("The plan template has been updated!", "success");
       } else {
         await apiFetch("/diet-plans/bulk-create/", {
           method: "POST",
           body: JSON.stringify(payload)
         });
-        toast("Szablon planu został zapisany!", "success");
+        toast("The plan template has been updated!", "success");
       }
 
       reloadPlans();
-      setView("list");
+      handleExit();
       setEditingPlanId(null);
     } catch (e) {
       toast("Błąd: " + e.message, "error");
@@ -255,7 +273,7 @@ export default function DietPlansPanel({ toast, user }) {
     }
   };
 
-  // --- FUNKCJA RENDERUJĄCA WYNIKI Z PANDAS ---
+  // PANDAS RESULTS RENDERING FUNCTION 
   const renderAnalytics = () => {
     if (!analytics || !analytics.averages) return null;
     return (
@@ -284,15 +302,15 @@ export default function DietPlansPanel({ toast, user }) {
           </div>
         </div>
 
-        {/* Sekcja wyłapanych odchyleń przez Pandas */}
+        {/*Pandas Exceptions Catched Section*/}
         {analytics.deviations && analytics.deviations.length > 0 && (
           <div className="p-4 bg-danger-light border border-danger/30 rounded-xl text-sm text-danger shadow-sm">
-            <span className="font-bold flex items-center gap-1">⚠️ Wykryto odchylenia kaloryczne (&gt;20%):</span>
+            <span className="font-bold flex items-center gap-1">⚠️ Calorie deviations detected (&gt;20%):</span>
             <ul className="mt-2 ml-5 list-disc mb-0 font-medium">
               {analytics.deviations.map((d, idx) => (
                 <li key={idx} className="mb-1">
-                  Dzień {d.day_number}: <span className="font-bold">{d.calories} kcal</span> (Cel: {d.goal} kcal) —
-                  odchylenie o {Math.abs(d.deviation_pct)}% ({d.status === 'OVER' ? 'Przekroczenie' : 'Niedobór'})
+                  Day {d.day_number}: <span className="font-bold">{d.calories} kcal</span> (Goal: {d.goal} kcal) —
+                  deviation of {Math.abs(d.deviation_pct)}% ({d.status === 'OVER' ? 'Surplus' : 'Deficit'})
                 </li>
               ))}
             </ul>
@@ -302,9 +320,9 @@ export default function DietPlansPanel({ toast, user }) {
     );
   };
 
-  // ---------- WIDOK LISTY ----------
+  // LIST VIEW 
   if (view === "list") {
-    return (
+    const displayedPlans = isDietitian ? plans.filter(p => p.patient === null) : plans;    return (
       <div className="pb-16 animate-fadeUp">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -321,7 +339,13 @@ export default function DietPlansPanel({ toast, user }) {
           <EmptyState icon="📅" title="No plans yet" sub="Create your first one now." />
         ) : (
           <div className="grid gap-3">
-            {plans.map(p => (
+            {displayedPlans.map(p => {
+              const savedPlanId = typeof user?.active_plan === 'object' ? user.active_plan?.id : user?.active_plan;
+
+              const isDefaultActive = !savedPlanId && p.id === displayedPlans[displayedPlans.length - 1]?.id;
+              const isActive = savedPlanId === p.id || isDefaultActive;
+
+              return (
               <div
                 key={p.id}
                 onClick={() => openView(p)}
@@ -343,6 +367,27 @@ export default function DietPlansPanel({ toast, user }) {
                 </div>
 
                 <div className="flex gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                  {!isDietitian && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const updatedUser = await apiFetch("/users/me/", {
+                              method: "PATCH",
+                              body: JSON.stringify({ active_plan: p.id })
+                            });
+                            setUser(updatedUser);
+                            toast("Diet plan activated!", "success");
+                          } catch (err) {
+                            toast("Error activating plan: " + err.message, "error");
+                          }
+                        }}
+                        disabled={isActive}
+                        className={`h-9 px-3 rounded-xl flex items-center justify-center border transition-colors text-sm font-semibold ${isActive ? 'bg-accent-xlight border-accent/30 text-accent cursor-default' : 'bg-background border-border text-text-muted hover:border-accent cursor-pointer'}`}
+                      >
+                        {isActive ? "✓ Active" : "Activate"}
+                      </button>
+                    )}
                   <button
                     onClick={() => handleExportShoppingList(p.id)}
                     title="Download shopping list"
@@ -390,22 +435,23 @@ export default function DietPlansPanel({ toast, user }) {
                     </>
                   )}
                 </div>
-              </div>
-            ))}
+             </div>
+              );
+            })}
           </div>
         )}
       </div>
     );
   }
 
-  // ---------- WIDOK TYLKO-DO-ODCZYTU (dla pacjenta/standard) ----------
+  // READ-ONLY VIEW (for patient/standard) 
   if (view === "view-readonly") {
     return (
       <div className="flex flex-col h-[85vh] animate-fadeUp">
         <div className="flex justify-between items-center mb-6 bg-surface p-5 rounded-2xl border border-border shrink-0">
           <div>
             <button
-              onClick={() => { setView("list"); setViewingPlan(null); }}
+              onClick={() => { handleExit(); setViewingPlan(null); }}
               className="flex items-center gap-1.5 text-sm font-semibold border-0 bg-transparent cursor-pointer mb-2"
               style={{ color: 'var(--color-text-muted)' }}
             >
@@ -474,7 +520,7 @@ export default function DietPlansPanel({ toast, user }) {
     );
   }
 
-  // ---------- WIDOK BUILDERA (tylko dietetyk: tworzenie/edycja) ----------
+  // BUILDER VIEW (Dietitian only: create/edit) 
   const filteredSidebar = (sidebarTab === 'recipes' ? recipes : products)
     .filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -497,7 +543,7 @@ export default function DietPlansPanel({ toast, user }) {
           />
         </div>
         <div className="flex gap-2 mb-1">
-          <Btn variant="secondary" onClick={() => { setView("list"); setEditingPlanId(null); }}>Cancel</Btn>
+          <Btn variant="secondary" onClick={() => { handleExit(); setEditingPlanId(null); }}>Cancel</Btn>
           <Btn onClick={savePlan} disabled={saving}>
             {saving ? "Saving..." : editingPlanId ? "Save changes ✓" : "Save ✓"}
           </Btn>

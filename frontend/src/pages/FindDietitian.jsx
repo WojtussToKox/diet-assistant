@@ -75,6 +75,7 @@ export default function FindDietitian({ toast }) {
         if (!d) return `User #${id}`;
         return d.first_name ? `${d.first_name} ${d.last_name || ''}`.trim() : d.username;
     };
+    
 
     return (
         <div className="pb-16 animate-fadeUp flex gap-8 items-start">
@@ -111,9 +112,8 @@ export default function FindDietitian({ toast }) {
                         {filtered.map(d => {
                             const initials = (d.first_name || d.username).slice(0, 2).toUpperCase();
 
-                            const isRequestActive = requests.some(r =>
-                                r.dietitian === d.id && (r.status === 'PENDING' || r.status === 'ACCEPTED')
-                            );
+                            // We are looking to see if the user has already sent an inquiry to this specific dietitian
+                            const userRequest = requests.find(r => r.dietitian === d.id);
 
                             return (
                                 <div key={d.id} className="p-4 rounded-2xl flex items-center justify-between" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
@@ -132,13 +132,22 @@ export default function FindDietitian({ toast }) {
                                         </div>
                                     </div>
 
-                                    {isRequestActive ? (
-                                        <div className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--color-background)', color: 'var(--color-text-muted)' }}>
-                                            Request sent
-                                        </div>
-                                    ) : (
-                                        <Btn size="sm" variant="secondary" onClick={() => setModal(d)}>Request Cooperation</Btn>
-                                    )}
+                                    {/* We display the status or Modal opening button based on the query status */}
+                                    <div>
+                                        {userRequest?.status === 'ACCEPTED' ? (
+                                            <span className="text-sm px-3 py-1.5 rounded-lg font-semibold" style={{ background: 'var(--color-accent-xlight)', color: 'var(--color-accent)' }}>
+                                                Accepted
+                                            </span>
+                                        ) : userRequest?.status === 'PENDING' ? (
+                                            <span className="text-sm px-3 py-1.5 rounded-lg font-semibold" style={{ background: '#FEF3C7', color: '#92400E' }}>
+                                                Request Sent
+                                            </span>
+                                        ) : (
+                                            <Btn onClick={() => setModal(d)}>
+                                                Send Request
+                                            </Btn>
+                                        )}
+                                    </div>
                                 </div>
                             )
                         })}

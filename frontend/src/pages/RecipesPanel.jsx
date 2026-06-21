@@ -3,13 +3,13 @@ import { useList } from "../hooks/useList";
 import { apiFetch } from "../services/api";
 import { Button as Btn } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
-import { Select } from "../components/ui/Select";
 import { Modal } from "../components/ui/Modal";
 import { Card } from "../components/ui/Card";
 import { Spinner } from "../components/ui/Spinner";
 import { MacroBar } from "../components/ui/MacroBar";
 import { EmptyState } from "../components/ui/EmptyState";
 import { FiEdit2, FiTrash2, FiPlus } from "react-icons/fi";
+import Select from "react-select";
 
 export default function RecipesPanel({ user, toast }) {
   const { data: recipes, loading, reload } = useList("/recipes/");
@@ -75,7 +75,9 @@ export default function RecipesPanel({ user, toast }) {
 
   const filtered = recipes.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
 
-  console.log("=== DEBUG ===", { user_w_panelu: user, pierwszy_przepis: recipes[0] });
+  const productOptions = (products || []).map(p => ({ value: String(p.id), label: p.name }));
+
+  console.log("=== DEBUG ===", { user_in_panelu: user, first_recipe: recipes[0] });
   return (
     <div className="pb-16 animate-fadeUp">
       <div className="flex items-center justify-between mb-8">
@@ -181,7 +183,38 @@ export default function RecipesPanel({ user, toast }) {
               <div className="grid gap-2">
                 {form.ingredients.map((ing, i) => (
                   <div key={i} className="grid grid-cols-[1fr_120px_36px] gap-2 items-center">
-                    <Select value={ing.product} onChange={v => updateIngredient(i, "product", v)} options={products.map(p => ({ value: String(p.id), label: p.name }))} placeholder="Choose product" />
+                    <Select
+                      value={productOptions.find(opt => opt.value === String(ing.product)) || null}
+                      onChange={selected => updateIngredient(i, "product", selected ? selected.value : "")}
+                      options={productOptions}
+                      placeholder="Wyszukaj produkt..."
+                      isSearchable={true}
+                      menuPortalTarget={document.body}
+                      styles={{
+                        menuPortal: base => ({ ...base, zIndex: 9999 }),
+                        control: (base, state) => ({
+                          ...base,
+                          background: 'var(--color-background)',
+                          borderColor: state.isFocused ? 'var(--color-accent)' : 'var(--color-border)',
+                          boxShadow: 'none',
+                          borderRadius: '0.75rem',
+                          padding: '0.15rem',
+                          fontSize: '0.875rem'
+                        }),
+                        menu: (base) => ({
+                          ...base,
+                          borderRadius: '0.75rem',
+                          overflow: 'hidden',
+                          fontSize: '0.875rem'
+                        }),
+                        option: (base, state) => ({
+                          ...base,
+                          backgroundColor: state.isFocused ? 'var(--color-background)' : 'white',
+                          color: state.isFocused ? 'var(--color-accent)' : 'var(--color-text)',
+                          cursor: 'pointer'
+                        })
+                      }}
+                    />
                     <div className="relative">
                       <input type="number" value={ing.weight_in_grams} onChange={e => updateIngredient(i, "weight_in_grams", e.target.value)} placeholder="100" min="1"
                         className="w-full box-border py-2.5 pl-3 pr-8 text-sm rounded-xl outline-none transition-all"

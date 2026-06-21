@@ -125,10 +125,13 @@ export default function ProductsPanel({ toast, user }) {
                     </span>
                   </div>
                 </div>
-                <div className="flex gap-1.5 shrink-0">
-                  <Btn variant="ghost" size="sm" onClick={() => openEdit(p)}><FiEdit2 /></Btn>
-                  <Btn variant="ghost" size="sm" onClick={() => remove(p.id)}><FiTrash2 /></Btn>
-                </div>
+                {p.author === user?.id && (
+                  <div className="flex gap-1.5 shrink-0">
+                    <Btn variant="ghost" size="sm" onClick={() => openEdit(p)}><FiEdit2 /></Btn>
+                    <Btn variant="ghost" size="sm" onClick={() => remove(p.id)}><FiTrash2 /></Btn>
+                  </div>
+                )}
+                
               </div>
               <MacroBar protein={p.protein_per_100g} fat={p.fat_per_100g} carbs={p.carbs_per_100g} />
             </Card>

@@ -25,9 +25,9 @@ class DietPlan(models.Model):
 
     patient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL, # Zmienione z CASCADE na SET_NULL
-        null=True,                 # Dodano: pozwala na brak przypisanego pacjenta
-        blank=True,                # Dodano: pozwala na brak przypisanego pacjenta
+        on_delete=models.SET_NULL,
+        null=True,                 
+        blank=True,               
         related_name='diet_plans_as_patient'
     )
     dietitian = models.ForeignKey(
@@ -44,9 +44,9 @@ class DietPlan(models.Model):
 
 
 class DailyMenu(models.Model):
-    DAY_CHOICES = [(1, 'Poniedziałek'), (2, 'Wtorek'), (3, 'Środa'), (4, 'Czwartek'), (5, 'Piątek'), (6, 'Sobota'), (7, 'Niedziela')]
+    DAY_CHOICES = [(1, 'Monady'), (2, 'Tuesday'), (3, 'Wednesday'), (4, 'Thursday'), (5, 'Friday'), (6, 'Saturday'), (7, 'Sunday')]
     diet_plan = models.ForeignKey(DietPlan, on_delete=models.CASCADE, related_name='daily_menus')
-    day_of_week = models.IntegerField(choices=DAY_CHOICES) # Zamiast day_number, mamy konkretny dzień tygodnia
+    day_of_week = models.IntegerField(choices=DAY_CHOICES)
 
     class Meta:
         unique_together = ('diet_plan', 'day_of_week')
@@ -67,19 +67,19 @@ class ScheduledMeal(models.Model):
     daily_menu = models.ForeignKey(DailyMenu, on_delete=models.CASCADE, related_name='meals')
     meal_type = models.CharField(max_length=20, choices=MEAL_CHOICES)
     
-    # Posiłek może być Przepisem ALBO bezpośrednim Produktem
+    
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, null=True, blank=True, related_name='scheduled_meals')
     product = models.ForeignKey('products.Product', on_delete=models.CASCADE, null=True, blank=True, related_name='scheduled_meals')
-    weight_in_grams = models.PositiveIntegerField(null=True, blank=True, help_text="Tylko dla pojedynczych produktów")
+    weight_in_grams = models.PositiveIntegerField(null=True, blank=True, help_text="Only for single products")
     
-    order_index = models.PositiveIntegerField(default=0) # Do pozycjonowania w przyszłości
+    order_index = models.PositiveIntegerField(default=0)
 
     class Meta: ordering = ['meal_type', 'order_index']
 
     def clean(self):
-        if self.recipe and self.product: raise ValidationError("Wybierz przepis ALBO produkt, nie oba.")
-        if not self.recipe and not self.product: raise ValidationError("Musisz wybrać przepis lub produkt.")
-        if self.product and not self.weight_in_grams: raise ValidationError("Waga jest wymagana dla produktu.")
+        if self.recipe and self.product: raise ValidationError("Choose either the recipe OR the product, not both.")
+        if not self.recipe and not self.product: raise ValidationError("You must choose a recipe or product.")
+        if self.product and not self.weight_in_grams: raise ValidationError("Weight is required for the product.")
 
     def __str__(self):
         item = self.recipe.name if self.recipe else f"{self.product.name} ({self.weight_in_grams}g)"

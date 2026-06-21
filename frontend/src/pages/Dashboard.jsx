@@ -52,7 +52,19 @@ export default function Dashboard({ user, toast }) {
   const [tab, setTab] = useState("recipes");
 
   const patientPlans = plans.filter(p => p.patient === user?.id);
-  const myPlan = patientPlans.length > 0 ? patientPlans[patientPlans.length - 1] : null;
+
+  let myPlan = null;
+  if (patientPlans.length > 0) {
+    if (user?.active_plan) {
+      const planId = typeof user.active_plan === 'object' ? user.active_plan.id : user.active_plan;
+      myPlan = patientPlans.find(p => p.id === planId);
+    }
+
+    if (!myPlan) {
+      myPlan = patientPlans[patientPlans.length - 1];
+    }
+  }
+
   const hasPlan = !!myPlan;
 
   const targetMenu = hasPlan ? dailyMenus.find(m => m.diet_plan === myPlan.id && m.day_of_week === currentDayId) : null;
@@ -99,7 +111,8 @@ export default function Dashboard({ user, toast }) {
     const existingLog = logs.find(l =>
       l.meal_type === scheduled.meal_type &&
       l.recipe === scheduled.recipe &&
-      l.product === scheduled.product
+      l.product === scheduled.product &&
+        String(l.weight_in_grams) === String(scheduled.weight_in_grams)
     );
 
     try {
@@ -243,7 +256,7 @@ export default function Dashboard({ user, toast }) {
         </div>
       </div>
 
-      {/* SCENARIO A: Has assigned plan */}
+      {/*Has assigned plan */}
       {hasPlan ? (
         <div>
           <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>
@@ -259,6 +272,7 @@ export default function Dashboard({ user, toast }) {
                   l.meal_type === meal.meal_type &&
                   l.recipe === meal.recipe &&
                   l.product === meal.product &&
+                  String(l.weight_in_grams) === String(meal.weight_in_grams) &&
                   !pairedLogIds.has(l.id)
                 );
                 if (matchingLog) pairedLogIds.add(matchingLog.id);
@@ -280,12 +294,13 @@ export default function Dashboard({ user, toast }) {
                   </div>
 
                   <div className="grid gap-2">
-                    {/* 1. ZAPLANOWANE POSIŁKI */}
+                    {/* 1. PLANNED MEALS */}
                     {mealsForThisType.map(meal => {
                       const matchingLog = logs.find(l =>
                         l.meal_type === meal.meal_type &&
                         l.recipe === meal.recipe &&
-                        l.product === meal.product
+                        l.product === meal.product &&
+                        String(l.weight_in_grams) === String(meal.weight_in_grams)
                       );
                       const isEaten = !!matchingLog;
 
@@ -306,7 +321,7 @@ export default function Dashboard({ user, toast }) {
                       )
                     })}
 
-                    {/* 2. NADPROGRAMOWE POSIŁKI (SPOZA DIETY) */}
+                    {/* 2. EXTRA MEALS (NOT WITHIN DIET) */}
                     {extraLogsForThisType.map(log => (
                       <div key={log.id} className="flex justify-between items-center p-4 rounded-xl bg-background border border-border">
                         <div className="flex items-center gap-4">
@@ -325,7 +340,7 @@ export default function Dashboard({ user, toast }) {
                       </div>
                     ))}
 
-                    {/* 3. BRAK POSIŁKÓW */}
+                    {/* 3. NO MEALS */}
                     {mealsForThisType.length === 0 && extraLogsForThisType.length === 0 && (
                       <div className="text-xs text-text-muted mt-1 mb-1">No meals planned or logged.</div>
                     )}
@@ -336,7 +351,7 @@ export default function Dashboard({ user, toast }) {
           </div>
         </div>
       ) : (
-        // SCENARIO B: Brak przypisanej diety
+        // NO ASSIGNED DIET
         <div>
           <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>
             {isToday ? "Logged Today" : `Logged on ${dayName}`}
@@ -385,7 +400,7 @@ export default function Dashboard({ user, toast }) {
             <button onClick={() => setTab('products')} className={`flex-1 py-2 text-sm font-semibold rounded-lg border-0 cursor-pointer transition-all ${tab === 'products' ? 'bg-surface shadow-sm text-accent' : 'bg-transparent text-text-muted'}`}>Products</button>
           </div>
 
-          <Input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input placeholder="Search..." value={search} onChange={v => setSearch(v)} />
 
           <div className="mt-4 max-h-[300px] overflow-y-auto space-y-2 pr-2">
             {filteredSidebar.length === 0 ? (

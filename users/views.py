@@ -77,7 +77,7 @@ class DietitianListView(APIView):
 class DietitianRequestViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = DietitianRequestSerializer
-    http_method_names = ['get', 'post', 'head', 'options']
+    http_method_names = ['get', 'post', 'head', 'options', 'delete']
 
     def get_queryset(self):
         user = self.request.user
@@ -93,17 +93,31 @@ class DietitianRequestViewSet(viewsets.ModelViewSet):
         serializer.save(patient=self.request.user)
 
     def create(self, request, *args, **kwargs):
-        # nie można wysłać prośby do samego siebie
         dietitian_id = request.data.get('dietitian')
+
+        # nie można wysłać prośby do samego siebie
         if str(request.user.id) == str(dietitian_id):
             return Response({'detail': 'Cannot send request to yourself.'},
                             status=status.HTTP_400_BAD_REQUEST)
-        # nie można wysłać drugiej prośby do tego samego dietetyka
-        if DietitianRequest.objects.filter(
-            patient=request.user, dietitian_id=dietitian_id, status='PENDING'
-        ).exists():
-            return Response({'detail': 'Request already pending.'},
-                            status=status.HTTP_400_BAD_REQUEST)
+
+        existing_req = DietitianRequest.objects.filter(
+            patient=request.user, dietitian_id=dietitian_id
+        ).first()
+
+        if existing_req:
+            if existing_req.status == 'PENDING':
+                return Response({'detail': 'Request already pending.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            elif existing_req.status == 'ACCEPTED':
+                return Response({'detail': 'You are already cooperating with this dietitian.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            elif existing_req.status == 'REJECTED':
+                existing_req.status = 'PENDING'
+                existing_req.message = request.data.get('message', '')
+                existing_req.save()
+                serializer = self.get_serializer(existing_req)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+
         return super().create(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'])
@@ -142,13 +156,10 @@ class EndCooperationView(APIView):
 
     def post(self, request, target_user_id):
         user = request.user
-        # Scenario A: Logged-in user is a dietitian, and target_user_id is their patient
         patient_as_target = User.objects.filter(id=target_user_id, dietitian=user).first()
-        # Scenario B: Logged-in user is a patient, and target_user_id is their dietitian
         dietitian_as_target = None
         if getattr(user, 'dietitian', None) and user.dietitian.id == target_user_id:
             dietitian_as_target = user.dietitian
-        # Identify who is who before removing the relationship
         if patient_as_target:
             patient = patient_as_target
             dietitian = user
@@ -158,10 +169,8 @@ class EndCooperationView(APIView):
         else:
             return Response({"detail": "No active cooperation found between you."}, status=400)
 
-        # 1. Unlink the dietitian from the patient's profile
         patient.dietitian = None
         patient.save()
-        # 2. Delete the related (accepted) request
         DietitianRequest.objects.filter(
             patient=patient, 
             dietitian=dietitian, 

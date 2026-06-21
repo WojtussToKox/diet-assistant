@@ -77,15 +77,14 @@ function SearchablePlanSelect({ plans, currentPlanId, onAssign, disabled }) {
 }
 
 // PatientCard
-function PatientCard({ patient, reload, toast }) {
+function PatientCard({ patient, reload, toast, onCustomizePlan }) {
     const { data: plans, reload: reloadPlans } = useList(`/diet-plans/`);
     const [assigning, setAssigning] = useState(false);
 
     const patientPlans = plans.filter(p => p.patient === patient.id);
     const activePlan = patientPlans.length > 0 ? patientPlans[patientPlans.length - 1] : null;
 
-    const availablePlans = plans.filter(p => p.patient === null || p.patient === patient.id);
-
+    const availablePlans = plans.filter(p => p.patient === null);
     const initials = (patient.first_name || patient.username).slice(0, 1).toUpperCase();
 
     const removePatient = async () => {
@@ -104,8 +103,8 @@ function PatientCard({ patient, reload, toast }) {
     const assignPlan = async (planId) => {
         setAssigning(true);
         try {
-            await apiFetch(`/diet-plans/${planId}/`, {
-                method: "PATCH",
+            await apiFetch(`/diet-plans/${planId}/assign_to_patient/`, { // NOWA WERSJA
+                method: "POST",
                 body: JSON.stringify({ patient: patient.id })
             });
             toast("Diet plan assigned successfully!", "success");
@@ -157,8 +156,13 @@ function PatientCard({ patient, reload, toast }) {
                             {activePlan.daily_calories_goal} kcal / day
                         </div>
                     </div>
-                    <div className="font-medium text-sm truncate" style={{ color: 'var(--color-text)' }}>
-                        {activePlan.name}
+                    <div className="flex justify-between items-center mt-1">
+                        <div className="font-medium text-sm truncate pr-2" style={{ color: 'var(--color-text)' }}>
+                            {activePlan.name}
+                        </div>
+                        <Btn size="sm" variant="secondary" onClick={() => onCustomizePlan(activePlan.id)}>
+                            Customize
+                        </Btn>
                     </div>
                 </div>
             )}
@@ -239,7 +243,7 @@ function PendingRequests({ toast, onAccepted }) {
     );
 }
 
-export default function DietitianDashboard({ user, toast }) {
+export default function DietitianDashboard({ user, toast, onCustomizePlan }) {
     const { data: patients, loading, reload } = useList("/users/my-patients/");
 
     return (
@@ -260,7 +264,7 @@ export default function DietitianDashboard({ user, toast }) {
                     sub="New patients can send you a cooperation request." />
             ) : (
                 <div className="grid grid-cols-2 gap-4">
-                    {patients.map(p => <PatientCard key={p.id} patient={p} reload={reload} toast={toast} />)}
+                    {patients.map(p => <PatientCard key={p.id} patient={p} reload={reload} toast={toast} onCustomizePlan={onCustomizePlan} />)}
                 </div>
             )}
         </div>

@@ -188,7 +188,7 @@ export default function SettingsPanel({ user, setUser, toast, onLogout }) {
                         label="Current password"
                         type="password"
                         value={passForm.old_password}
-                        onChange={e => setPassForm(f => ({ ...f, old_password: e.target.value }))}
+                        onChange={v => setPassForm(f => ({ ...f, old_password: v }))}
                         placeholder="••••••••"
                     />
                     <div className="grid grid-cols-2 gap-3">
@@ -196,14 +196,14 @@ export default function SettingsPanel({ user, setUser, toast, onLogout }) {
                             label="New password"
                             type="password"
                             value={passForm.new_password}
-                            onChange={e => setPassForm(f => ({ ...f, new_password: e.target.value }))}
+                            onChange={v => setPassForm(f => ({ ...f, new_password: v }))}
                             placeholder="••••••••"
                         />
                         <Input
                             label="Confirm password"
                             type="password"
                             value={passForm.confirm_password}
-                            onChange={e => setPassForm(f => ({ ...f, confirm_password: e.target.value }))}
+                            onChange={v => setPassForm(f => ({ ...f, confirm_password: v }))}
                             placeholder="••••••••"
                         />
                     </div>
